@@ -8,12 +8,15 @@
 |------|------|
 | 프로젝트 구조 설계 | ✅ 완료 |
 | 데이터 모델 (schemas.py) | ✅ 완료 |
-| 데이터베이스 계층 (db.py) | ✅ 완료 (인메모리) |
+| 데이터베이스 계층 (db.py) | ✅ 완료 (SQLite) |
 | API 라우터 (detect, stats) | ✅ 완료 |
 | 메인 애플리케이션 | ✅ 완료 |
 | 에러 핸들링 | ✅ 완료 |
 | API 테스트 | ✅ 완료 |
-| SQLite 전환 | ⏳ 예정 |
+| SQLite 전환 | ✅ 완료 |
+| Config 모듈 | ✅ 완료 |
+| 테스트 코드 | ⏳ 예정 |
+| 로깅 | ⏳ 예정 |
 
 ## 프로젝트 구조 (모노레포)
 
@@ -21,6 +24,7 @@
 project/
 ├── .github/
 ├── .gitignore
+├── .gitmessage              # 커밋 메시지 템플릿
 ├── CLAUDE.md
 ├── README.md
 ├── docs/
@@ -30,13 +34,17 @@ project/
 │   └── api/                    # 백엔드 (FastAPI)
 │       ├── .venv/              # 가상환경
 │       ├── main.py             # 앱 설정, CORS, 라우터 통합
+│       ├── config/
+│       │   └── settings.py     # 설정값 중앙 관리
 │       ├── schemas/
 │       │   └── schemas.py      # Pydantic 요청/응답 모델
 │       ├── routers/
 │       │   ├── detect.py       # POST /detect
 │       │   └── stats.py        # GET /stats, /latest, /defects
 │       ├── database/
-│       │   └── db.py           # 인메모리 저장소 (SQLite 전환 예정)
+│       │   └── db.py           # SQLite 연동 (aiosqlite)
+│       ├── data/
+│       │   └── inspection.db   # SQLite 데이터베이스 파일
 │       ├── utils/
 │       │   └── image_utils.py  # Base64 디코딩, 이미지 저장
 │       ├── images/
@@ -50,7 +58,16 @@ project/
 
 ## 구현 완료 내역
 
-### 1. 데이터 모델 (`serving/api/schemas/schemas.py`)
+### 1. Config 모듈 (`serving/api/config/settings.py`)
+
+| 설정 | 설명 |
+|------|------|
+| `DB_PATH` | SQLite 데이터베이스 경로 |
+| `IMAGE_DIR` | 결함 이미지 저장 경로 |
+| `CORS_ORIGINS` | CORS 허용 도메인 |
+| `API_TITLE`, `API_VERSION` | API 메타정보 |
+
+### 2. 데이터 모델 (`serving/api/schemas/schemas.py`)
 
 | 모델 | 설명 |
 |------|------|
@@ -59,16 +76,18 @@ project/
 | `StatsResponse` | total_count, normal_count, defect_count, defect_rate, avg_fps, last_defect |
 | `DefectInfo` | 결함 상세 정보 객체 |
 
-### 2. 데이터베이스 계층 (`serving/api/database/db.py`)
+### 3. 데이터베이스 계층 (`serving/api/database/db.py`)
 
-- **현재**: 파이썬 리스트(`List`)를 사용한 인메모리 저장소
+- **저장소**: SQLite (aiosqlite)
+- **테이블**: `inspection_logs`
 - **주요 함수**:
+  - `init_db()` - 테이블 생성 (서버 시작 시)
   - `add_inspection_log()` - 검사 결과 저장
   - `get_stats()` - 통계 계산
   - `get_recent_logs()` - 최근 로그 조회
   - `get_defect_logs()` - 결함 로그만 조회
 
-### 3. API 라우터
+### 4. API 라우터
 
 **`serving/api/routers/detect.py`**
 - `POST /detect/`: 결함 탐지 결과 수신, 이미지 저장, 로그 기록
@@ -78,13 +97,13 @@ project/
 - `GET /latest`: 최근 검사 이력 반환
 - `GET /defects`: 결함 타입별 집계 반환
 
-### 4. 유틸리티 (`serving/api/utils/image_utils.py`)
+### 5. 유틸리티 (`serving/api/utils/image_utils.py`)
 
 - `decode_base64_image(base64_string: str) -> bytes`
 - `save_defect_image(image_data: bytes, image_id: str, timestamp: str) -> str`
 - 파일명 규칙: `{timestamp}_{image_id}.jpg` (timestamp의 `:` → `-` 변환)
 
-### 5. 에러 핸들링
+### 6. 에러 핸들링
 
 | 상황 | HTTP 상태 코드 |
 |------|---------------|
@@ -107,12 +126,22 @@ API 문서: http://localhost:8000/docs
 ```
 main        ← 안정 버전
 └── dev     ← 개발 통합
-     └── feat/BE  ← 백엔드 작업 (현재)
+     └── feat/JE  ← 백엔드 작업 (현재)
+```
+
+## 커밋 컨벤션
+
+`.gitmessage` 템플릿 사용:
+```
+[파트] 타입: 제목
+
+예시:
+[BE] feat: POST /detect 엔드포인트 구현
+[BE] fix: Base64 디코딩 오류 수정
 ```
 
 ## 다음 단계
 
-1. **SQLite 전환**: `database/db.py`를 aiosqlite로 마이그레이션
-2. **테스트 코드**: `tests/` 폴더에 API 테스트 스크립트 추가
-3. **로깅**: API 요청/응답 로깅 구현
-4. **avg_fps 계산**: 엣지 팀과 협의 후 실제 FPS 계산 로직 추가
+1. **테스트 코드**: `tests/` 폴더에 API 테스트 스크립트 추가
+2. **로깅**: API 요청/응답 로깅 구현
+3. **avg_fps 계산**: 엣지 팀과 협의 후 실제 FPS 계산 로직 추가
