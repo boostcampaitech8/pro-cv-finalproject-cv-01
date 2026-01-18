@@ -9,6 +9,7 @@ PCB 결함 탐지 Edge AI 시스템의 **백엔드 서버**.
 - **역할**: 엣지(Jetson)에서 추론 결과를 받아 저장하고, 프론트(Streamlit)에 통계/이력 제공
 - **기간**: 1개월 (마감 2월 11일)
 - **팀**: 5명 중 백엔드 담당
+- **배포**: AWS Lightsail (3.36.185.146)
 
 ```
 [Jetson/엣지] ──POST /detect──→ [FastAPI/백엔드] ←──GET /stats── [Streamlit/프론트]
@@ -17,15 +18,17 @@ PCB 결함 탐지 Edge AI 시스템의 **백엔드 서버**.
 ## Tech Stack
 
 - **Framework**: FastAPI
-- **Database**: SQLite (개발 초기엔 메모리/JSON도 가능)
+- **Database**: SQLite (aiosqlite)
 - **Image Storage**: 파일 시스템 (/images/defects/)
 - **Python**: >=3.11
+- **Deployment**: 1차 직접 설치 / 2차 Docker (준비됨)
+- **Server**: AWS Lightsail (3.36.185.146)
 
 ## API Endpoints
 
-### POST /detect (엣지 → 백엔드)
+### POST /detect/ (엣지 → 백엔드)
 
-엣지에서 추론 결과 수신
+엣지에서 추론 결과 수신. **1개 PCB에서 여러 결함 지원**.
 
 **Request Body:**
 
@@ -33,16 +36,44 @@ PCB 결함 탐지 Edge AI 시스템의 **백엔드 서버**.
 |------|------|------|------|
 | timestamp | string | O | ISO 8601 형식 ("2026-01-14T15:30:45") |
 | image_id | string | O | 이미지 식별자 ("PCB_001234") |
-| result | string | O | "normal" 또는 "defect" |
-| confidence | float | O | 신뢰도 (0.0~1.0) |
-| defect_type | string | X | 결함 종류 (불량일 때만) |
-| bbox | list[int] | X | [x1, y1, x2, y2] (불량일 때만) |
 | image | string | X | Base64 인코딩 이미지 (불량일 때만) |
+| detections | list | O | 결함 목록 (빈 배열 = 정상) |
+
+**detections 배열 요소:**
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| defect_type | string | O | 결함 종류 (scratch, hole 등) |
+| confidence | float | O | 신뢰도 (0.0~1.0) |
+| bbox | list[int] | O | [x1, y1, x2, y2] |
+
+**예시 - 정상:**
+```json
+{
+  "timestamp": "2026-01-18T15:00:00",
+  "image_id": "PCB_001",
+  "detections": []
+}
+```
+
+**예시 - 불량 (결함 3개):**
+```json
+{
+  "timestamp": "2026-01-18T15:01:00",
+  "image_id": "PCB_002",
+  "image": "base64_encoded_string",
+  "detections": [
+    {"defect_type": "scratch", "confidence": 0.95, "bbox": [10, 20, 100, 120]},
+    {"defect_type": "scratch", "confidence": 0.87, "bbox": [150, 180, 200, 230]},
+    {"defect_type": "hole", "confidence": 0.92, "bbox": [300, 350, 320, 380]}
+  ]
+}
+```
 
 **Response:**
 
 ```json
-{"status": "ok", "id": 12345}
+{"status": "ok", "id": 1}
 ```
 
 ### GET /stats (프론트 → 백엔드)
@@ -53,12 +84,34 @@ PCB 결함 탐지 Edge AI 시스템의 **백엔드 서버**.
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
-| total_count | int | 총 검사 수 |
-| normal_count | int | 정상 개수 |
-| defect_count | int | 불량 개수 |
-| defect_rate | float | 불량률 (%) |
+| total_inspections | int | 총 검사 수 (PCB 개수) |
+| normal_count | int | 정상 PCB 개수 |
+| defect_items | int | 불량 PCB 개수 |
+| total_defects | int | 탐지된 결함 총 개수 |
+| defect_rate | float | 불량률 (%) = defect_items / total_inspections × 100 |
+| avg_defects_per_item | float | 불량 PCB당 평균 결함 개수 |
 | avg_fps | float | 평균 FPS |
 | last_defect | object | 가장 최근 불량 정보 |
+
+**통계 개념:**
+- `total_inspections`: 검사한 PCB 수 (DISTINCT image_id)
+- `defect_items`: 1개 이상의 결함이 있는 PCB 수
+- `total_defects`: 탐지된 결함의 총 개수 (1 PCB에 여러 결함 가능)
+- `defect_rate`: 불량률 = (defect_items / total_inspections) × 100
+
+**예시 응답:**
+```json
+{
+  "total_inspections": 100,
+  "normal_count": 90,
+  "defect_items": 10,
+  "total_defects": 25,
+  "defect_rate": 10.0,
+  "avg_defects_per_item": 2.5,
+  "avg_fps": 0.0,
+  "last_defect": {...}
+}
+```
 
 **last_defect 객체:**
 
@@ -98,15 +151,28 @@ PCB 결함 탐지 Edge AI 시스템의 **백엔드 서버**.
 ## Development Setup
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install fastapi uvicorn python-multipart aiosqlite
+cd serving/api
+uv sync --active
 ```
 
 ## Running the Server
 
+**로컬 개발:**
 ```bash
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+cd serving/api
+uv run uvicorn main:app --reload --port 8000
+```
+
+**서버 배포 (1차 - 직접 설치):**
+```bash
+cd serving/api
+uv sync
+uv run uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+**서버 배포 (2차 - Docker, 추후):**
+```bash
+docker-compose up -d
 ```
 
 API 문서 확인: http://localhost:8000/docs
@@ -114,27 +180,40 @@ API 문서 확인: http://localhost:8000/docs
 ## Project Structure
 
 ```
-├── main.py              # FastAPI 앱 진입점, 라우터 등록
+serving/api/
+├── main.py              # FastAPI 앱, 라우터, lifespan
+├── config/
+│   └── settings.py      # 설정 중앙 관리
+├── schemas/
+│   └── schemas.py       # Pydantic 모델
 ├── routers/
-│   ├── detect.py        # POST /detect 엔드포인트
+│   ├── detect.py        # POST /detect
 │   └── stats.py         # GET /stats, /latest, /defects
-├── models/
-│   └── schemas.py       # Pydantic 요청/응답 스키마
 ├── database/
-│   └── db.py            # SQLite 연결 및 CRUD 함수
+│   └── db.py            # SQLite (aiosqlite)
+├── utils/
+│   └── image_utils.py   # Base64 디코딩, 이미지 저장
+├── data/
+│   └── inspection.db    # SQLite 파일
 ├── images/
-│   └── defects/         # 불량 이미지 저장 폴더
+│   └── defects/         # 결함 이미지
+├── Dockerfile
+├── docker-compose.yml
+├── .dockerignore
 ├── pyproject.toml
-└── CLAUDE.md
+└── uv.lock
 ```
 
 ## Implementation Priority
 
-1. **1순위**: POST /detect + 메모리 저장 (엣지 연동 테스트용)
-2. **2순위**: GET /stats 기본 구현 (프론트 연동용)
-3. **3순위**: SQLite 전환 + 이미지 파일 저장
-4. **4순위**: GET /latest, GET /defects 추가
-5. **5순위**: 에러 핸들링, 로깅
+1. ✅ **완료**: POST /detect + SQLite 저장
+2. ✅ **완료**: GET /stats, /latest, /defects
+3. ✅ **완료**: 이미지 파일 저장 + Base64 처리
+4. ✅ **완료**: 에러 핸들링, Config 모듈
+5. ✅ **준비됨**: Docker 설정 (2차 배포용)
+6. ✅ **완료**: 1차 서버 배포 (직접 설치, 2026-01-18)
+7. ⏳ **예정**: 테스트 코드, 로깅
+8. ⏳ **선택**: 2차 Docker 전환
 
 ## Important Notes
 
@@ -142,6 +221,8 @@ API 문서 확인: http://localhost:8000/docs
 - **이미지 저장**: DB에 직접 저장 X → 파일 시스템에 저장, DB엔 경로만
 - **Base64 디코딩**: 불량 이미지 수신 시 디코딩해서 파일로 저장
 - **Static Files**: 저장된 이미지를 프론트에서 불러올 수 있게 서빙
+- **데이터 영속화**: 서버 로컬 디렉토리 (1차) / Docker 볼륨 마운트 (2차)
+- **포트 노출**: Lightsail 방화벽에서 8000 포트 개방 필요
 
 ## Collaboration
 
@@ -156,6 +237,81 @@ API 문서 확인: http://localhost:8000/docs
 - 시간별/일별 그래프용 데이터 필요 여부 : 향후 정함
 
 **코드 주석은 한국어로 작성해줘**
+
+## Deployment
+
+### 서버 정보
+- **Host**: pcb-defect
+- **IP**: 3.36.185.146
+- **User**: ubuntu
+- **접속 키**: ~/.ssh/LightsailDefaultKey-ap-northeast-2.pem
+
+### 서버 접속
+```bash
+ssh pcb-defect
+# 또는
+ssh -i ~/.ssh/LightsailDefaultKey-ap-northeast-2.pem ubuntu@3.36.185.146
+```
+
+### 1차 배포: 직접 설치 (✅ 완료)
+
+**배포 일시**: 2026-01-18
+**브랜치**: feat/BE
+**실행 방식**: nohup (백그라운드)
+
+**서버 시작:**
+```bash
+ssh pcb-defect
+cd ~/pro-cv-finalproject-cv-01/serving/api
+nohup uv run uvicorn main:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &
+```
+
+**서버 중지:**
+```bash
+ssh pcb-defect
+pkill -f uvicorn
+```
+
+**서버 상태 확인:**
+```bash
+ssh pcb-defect
+ps aux | grep uvicorn
+```
+
+**코드 업데이트 후 재시작:**
+```bash
+ssh pcb-defect
+cd ~/pro-cv-finalproject-cv-01
+git pull origin feat/BE
+cd serving/api
+uv sync
+pkill -f uvicorn
+nohup uv run uvicorn main:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &
+```
+
+### 2차 배포: Docker (추후)
+안정화 후 Docker로 전환 예정
+
+**준비된 파일:**
+- Dockerfile (로컬에만 보관, Git에 미포함)
+- docker-compose.yml (로컬에만 보관, Git에 미포함)
+- .dockerignore (로컬에만 보관, Git에 미포함)
+
+### 배포 URL
+- **API 문서**: http://3.36.185.146:8000/docs
+- **헬스체크**: http://3.36.185.146:8000/stats
+- **Jetson → POST**: http://3.36.185.146:8000/detect
+- **Streamlit → GET**: http://3.36.185.146:8000/stats
+
+### 팀 연동 안내
+
+**Jetson 엣지 팀:**
+- 추론 결과를 `http://3.36.185.146:8000/detect`로 POST 전송
+
+**Streamlit 대시보드 팀:**
+- 통계 데이터를 `http://3.36.185.146:8000/stats`에서 GET 조회
+- 최근 로그: `http://3.36.185.146:8000/latest?limit=10`
+- 결함 목록: `http://3.36.185.146:8000/defects`
 
 ## Commit Convention
 

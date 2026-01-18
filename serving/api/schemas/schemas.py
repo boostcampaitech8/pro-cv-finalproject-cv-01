@@ -17,21 +17,26 @@ class DefectInfo(BaseModel):
     image_path: Optional[str] = Field(None, description="Path to the saved image file")
 
 
+class Detection(BaseModel):
+    """
+    개별 결함 정보
+    """
+    defect_type: str = Field(..., description="결함 종류 (scratch, hole, etc.)")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="신뢰도")
+    bbox: List[int] = Field(..., description="[x1, y1, x2, y2] bounding box")
+
+
 # --- Request Models ---
 
 class DetectRequest(BaseModel):
     """
     Request body for POST /detect
+    여러 결함을 지원하는 새로운 구조
     """
     timestamp: str = Field(..., description="ISO 8601 timestamp, e.g., '2026-01-14T15:30:45'")
     image_id: str = Field(..., description="Image Identifier, e.g., 'PCB_001234'")
-    result: str = Field(..., description="'normal' or 'defect'")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score 0.0-1.0")
-    
-    # Optional fields (required/relevant only if result == 'defect')
-    defect_type: Optional[str] = None
-    bbox: Optional[List[int]] = None
-    image: Optional[str] = Field(None, description="Base64 encoded image string")
+    image: Optional[str] = Field(None, description="Base64 encoded image string (optional)")
+    detections: List[Detection] = Field(default_factory=list, description="결함 목록 (빈 배열 = 정상)")
 
 
 # --- Response Models ---
@@ -48,9 +53,11 @@ class StatsResponse(BaseModel):
     """
     Response for GET /stats
     """
-    total_count: int
-    normal_count: int
-    defect_count: int
-    defect_rate: float = Field(..., description="Percentage of defects (0-100)")
+    total_inspections: int = Field(..., description="총 검사 수 (PCB 개수)")
+    normal_count: int = Field(..., description="정상 PCB 개수")
+    defect_items: int = Field(..., description="불량 PCB 개수")
+    total_defects: int = Field(..., description="탐지된 결함 총 개수")
+    defect_rate: float = Field(..., description="불량률 (%)")
+    avg_defects_per_item: float = Field(..., description="불량 PCB당 평균 결함 개수")
     avg_fps: float = Field(..., description="Average processing/transmission FPS")
     last_defect: Optional[DefectInfo] = Field(None, description="Details of the most recent defect")

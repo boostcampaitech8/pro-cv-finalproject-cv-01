@@ -14,14 +14,13 @@ router = APIRouter(
 async def receive_detection_result(request: DetectRequest):
     """
     Receives detection result from Edge/Jetson.
-    If result is 'defect' and image data is provided, saves the image.
-    Saves the log to database (memory/sqlite).
+    Supports multiple defects per image.
     """
     saved_image_path = None
 
     try:
-        # 1. Handle Defect Image Saving
-        if request.result == "defect" and request.image:
+        # 1. Handle Image Saving (불량인 경우만)
+        if len(request.detections) > 0 and request.image:
             # Decode Base64
             try:
                 image_bytes = image_utils.decode_base64_image(request.image)
@@ -44,10 +43,10 @@ async def receive_detection_result(request: DetectRequest):
                     detail=f"Failed to save image: {str(e)}"
                 )
 
-        # 2. Save Log to Database
-        log_id = await db.add_inspection_log(request, saved_image_path)
+        # 2. Save Log(s) to Database
+        log_ids = await db.add_inspection_log(request, saved_image_path)
 
-        return DetectResponse(status="ok", id=log_id)
+        return DetectResponse(status="ok", id=log_ids[0])  # 첫번째 ID 반환
 
     except HTTPException:
         raise
