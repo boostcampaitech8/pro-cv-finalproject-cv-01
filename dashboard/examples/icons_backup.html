@@ -1,0 +1,328 @@
+<!--
+=========================================================
+* Paper Dashboard 2 - v2.0.1
+=========================================================
+
+* Product Page: https://www.creative-tim.com/product/paper-dashboard-2
+* Copyright 2020 Creative Tim (https://www.creative-tim.com)
+
+Coded by www.creative-tim.com
+
+ =========================================================
+
+* The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <link rel="apple-touch-icon" sizes="76x76" href="../assets/img/apple-icon.png">
+  <link rel="icon" type="image/png" href="../assets/img/favicon.png">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+  <title>
+    Paper Dashboard 2 by Creative Tim
+  </title>
+  <meta content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, shrink-to-fit=no'
+    name='viewport' />
+  <!--     Fonts and icons     -->
+  <link href="https://fonts.googleapis.com/css?family=Montserrat:400,700,200" rel="stylesheet" />
+  <link href="https://maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css" rel="stylesheet">
+  <!-- CSS Files -->
+  <link href="../assets/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="../assets/css/paper-dashboard.css?v=2.0.1" rel="stylesheet" />
+  <!-- CSS Just for demo purpose, don't include it in your project -->
+  <link href="../assets/demo/demo.css" rel="stylesheet" />
+</head>
+
+<body class="">
+  <div class="wrapper ">
+    <div class="sidebar" data-color="white" data-active-color="danger">
+      <div class="logo">
+        <a href="javascript:;" class="simple-text logo-mini">
+          <div class="logo-image-small">
+            <img src="../assets/img/logo-small.png">
+          </div>
+        </a>
+        <a href="javascript:;" class="simple-text logo-normal">
+          Merby
+        </a>
+      </div>
+      <div class="sidebar-wrapper">
+        <ul class="nav">
+          <li>
+            <a href="./dashboard.html">
+              <i class="nc-icon nc-layout-11"></i>
+              <p>Dashboard</p>
+            </a>
+          </li>
+          <li class="active ">
+            <a href="./icons.html">
+              <i class="nc-icon nc-diamond"></i>
+              <p>Icons</p>
+            </a>
+          </li>
+          <li>
+            <a href="./tables.html">
+              <i class="nc-icon nc-tile-56"></i>
+              <p>Table List</p>
+            </a>
+          </li>
+          <!-- Upgrade to PRO removed -->
+        </ul>
+      </div>
+    </div>
+    <div class="main-panel">
+      <!-- Navbar -->
+      <nav class="navbar navbar-expand-lg navbar-absolute fixed-top navbar-transparent">
+        <div class="container-fluid">
+          <div class="navbar-wrapper">
+            <div class="navbar-toggle">
+              <button type="button" class="navbar-toggler">
+                <span class="navbar-toggler-bar bar1"></span>
+                <span class="navbar-toggler-bar bar2"></span>
+                <span class="navbar-toggler-bar bar3"></span>
+              </button>
+            </div>
+            <a class="navbar-brand" href="javascript:;">PCB dashboard</a>
+          </div>
+          <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navigation"
+            aria-controls="navigation-index" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-bar navbar-kebab"></span>
+            <span class="navbar-toggler-bar navbar-kebab"></span>
+            <span class="navbar-toggler-bar navbar-kebab"></span>
+          </button>
+          <div class="collapse navbar-collapse justify-content-end" id="navigation">
+
+          </div>
+        </div>
+      </nav>
+      <!-- End Navbar -->
+      <div class="content">
+        <div class="row">
+          <div class="col-md-8" style="flex: 0 0 70%; max-width: 70%;">
+            <div class="card h-100">
+              <div class="card-header">
+                <h5 class="card-title">Defect Image Viewer</h5>
+              </div>
+              <div class="card-body">
+                <div class="image-container"
+                  style="width: 100%; height: 600px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 5px;">
+                  <img id="main-image" src="../assets/img/logo-small.png" alt="Select a defect log to view image"
+                    style="max-width: 100%; max-height: 100%;">
+                  <div id="bbox-container"
+                    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
+                </div>
+                <div class="mt-3 d-flex justify-content-between align-items-center">
+                  <div>
+                    <h6 id="image-details-title">Select a log entry to see details</h6>
+                    <p id="image-details-desc">-</p>
+                  </div>
+                  <div class="custom-control custom-switch">
+                    <input type="checkbox" class="custom-control-input" id="bboxToggle">
+                    <label class="custom-control-label" for="bboxToggle">Show BBox</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4" style="flex: 0 0 30%; max-width: 30%;">
+            <div class="card h-100">
+              <div class="card-header">
+                <h5 class="card-title">Recent Defects Log </h5>
+              </div>
+              <div class="card-body d-flex flex-column">
+                <div class="table-full-width table-responsive flex-grow-1" style="overflow-y: auto;">
+                  <table class="table">
+                    <thead class=" text-primary">
+                      <th>Time</th>
+                      <th>Type</th>
+                      <th>Image ID</th>
+                    </thead>
+                    <tbody id="defect-log-table-body">
+                      <!-- Rows will be populated by JS -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <!--   Core JS Files   -->
+  <script src="../assets/js/core/jquery.min.js"></script>
+  <script src="../assets/js/core/popper.min.js"></script>
+  <script src="../assets/js/core/bootstrap.min.js"></script>
+  <script src="../assets/js/plugins/perfect-scrollbar.jquery.min.js"></script>
+  <!--  Google Maps Plugin    -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_KEY_HERE"></script>
+  <!-- Chart JS -->
+  <script src="../assets/js/plugins/chartjs.min.js"></script>
+  <!--  Notifications Plugin    -->
+  <script src="../assets/js/plugins/bootstrap-notify.js"></script>
+  <!-- Control Center for Now Ui Dashboard: parallax effects, scripts for the example pages etc -->
+  <script src="../assets/js/paper-dashboard.min.js?v=2.0.1" type="text/javascript"></script>
+  <!-- Paper Dashboard DEMO methods, don't include it in your project! -->
+  <script src="../assets/demo/demo.js"></script>
+  <script>
+    $(document).ready(function () {
+      // Dummy Data for Defect Logs (Mocking API Response)
+      // Updated to support multiple defects per image
+      const defectLogs = [
+        {
+          id: 'PCB_0010',
+          time: '10:30:05',
+          confidence: 0.98,
+          image: '../assets/img/logo-small.png',
+          defects: [
+            { type: 'Missing Hole', bbox: [100, 100, 50, 50] },
+            { type: 'Mouse Bite', bbox: [200, 150, 40, 40] }
+          ]
+        },
+        {
+          id: 'PCB_0009',
+          time: '10:29:45',
+          confidence: 0.85,
+          image: '../assets/img/logo-small.png',
+          defects: [
+            { type: 'Mouse Bite', bbox: [150, 120, 40, 40] }
+          ]
+        },
+        {
+          id: 'PCB_0008',
+          time: '10:28:12',
+          confidence: 0.92,
+          image: '../assets/img/logo-small.png',
+          defects: [
+            { type: 'Open Circuit', bbox: [200, 150, 60, 30] },
+            { type: 'Short', bbox: [300, 100, 30, 30] },
+            { type: 'Spur', bbox: [250, 250, 20, 20] }
+          ]
+        },
+        { id: 'PCB_0007', time: '10:27:55', confidence: 0.99, image: '../assets/img/logo-small.png', defects: [{ type: 'Short', bbox: [80, 200, 45, 45] }] },
+        { id: 'PCB_0006', time: '10:25:30', confidence: 0.75, image: '../assets/img/logo-small.png', defects: [{ type: 'Spur', bbox: [120, 180, 35, 35] }] },
+        { id: 'PCB_0005', time: '10:24:10', confidence: 0.88, image: '../assets/img/logo-small.png', defects: [{ type: 'Spurious Copper', bbox: [180, 220, 55, 55] }] },
+        { id: 'PCB_0004', time: '10:22:00', confidence: 0.95, image: '../assets/img/logo-small.png', defects: [{ type: 'Missing Hole', bbox: [110, 90, 48, 48] }] },
+        { id: 'PCB_0003', time: '10:20:15', confidence: 0.82, image: '../assets/img/logo-small.png', defects: [{ type: 'Mouse Bite', bbox: [160, 130, 42, 42] }] },
+        { id: 'PCB_0002', time: '10:18:40', confidence: 0.96, image: '../assets/img/logo-small.png', defects: [{ type: 'Short', bbox: [190, 160, 58, 28] }] },
+        { id: 'PCB_0001', time: '10:15:00', confidence: 0.91, image: '../assets/img/logo-small.png', defects: [{ type: 'Open Circuit', bbox: [90, 210, 44, 44] }] }
+      ];
+
+      const tableBody = $('#defect-log-table-body');
+      const mainImage = $('#main-image');
+      const detailsTitle = $('#image-details-title');
+      const detailsDesc = $('#image-details-desc');
+
+      // Color mapping for defect types
+      const colorMap = {
+        'Missing Hole': 'red',
+        'Mouse Bite': 'orange',
+        'Open Circuit': 'blue',
+        'Short': 'purple',
+        'Spur': 'green',
+        'Spurious Copper': 'brown'
+      };
+
+      // Populate Table
+      defectLogs.forEach(log => {
+        // Join all defect types for display
+        const types = log.defects.map(d => d.type).join(', ');
+
+        const row = `
+          <tr class="defect-row" style="cursor: pointer;" data-id="${log.id}">
+            <td>${log.time}</td>
+            <td class="text-danger">${types}</td>
+            <td class="text-primary">${log.id}</td>
+          </tr>
+        `;
+        tableBody.append(row);
+      });
+
+      // Click Event Handler
+      $(document).on('click', '.defect-row', function () {
+        // Highlight selected row
+        $('.defect-row').removeClass('table-active'); // Remove formatting from others
+        $(this).addClass('table-active'); // Bootstrap class for highlighting
+
+        const id = $(this).data('id');
+        const selectedLog = defectLogs.find(log => log.id === id);
+
+        if (selectedLog) {
+          // Update Image
+          mainImage.attr('src', selectedLog.image);
+
+          // Update Details
+          const types = selectedLog.defects.map(d => d.type).join(', ');
+          detailsTitle.text(`${selectedLog.id} - ${types}`);
+          detailsDesc.html(`
+            <strong>Time:</strong> ${selectedLog.time}<br>
+            <strong>Confidence:</strong> ${(selectedLog.confidence * 100).toFixed(1)}%<br>
+            <strong>Defect Count:</strong> ${selectedLog.defects.length}
+          `);
+
+          // Update BBox
+          updateBBox(selectedLog.defects);
+        }
+      });
+
+      // BBox Update Function
+      function updateBBox(defects) {
+        const container = $('#bbox-container');
+        container.empty(); // Clear existing bboxes
+
+        if ($('#bboxToggle').is(':checked') && defects && defects.length > 0) {
+          defects.forEach(defect => {
+            const bbox = defect.bbox;
+            const color = colorMap[defect.type] || 'red';
+
+            // Assuming bbox is [x, y, w, h] and coordinate system matches displayed image roughly
+            // For this demo with 'logo-small.png' and fixed container size, we use pixels directly.
+            // In production, scaling logic (naturalWidth vs clientWidth) is needed.
+            const boxDiv = $('<div></div>').css({
+              'position': 'absolute',
+              'left': bbox[0] + 'px',
+              'top': bbox[1] + 'px',
+              'width': bbox[2] + 'px',
+              'height': bbox[3] + 'px',
+              'border': `2px solid ${color}`,
+              'pointer-events': 'none'
+            });
+
+            // Optional: Add label
+            const label = $('<span></span>').text(defect.type).css({
+              'position': 'absolute',
+              'top': '-20px',
+              'left': '-2px',
+              'background-color': color,
+              'color': 'white',
+              'font-size': '10px',
+              'padding': '2px 4px',
+              'white-space': 'nowrap'
+            });
+
+            boxDiv.append(label);
+            container.append(boxDiv);
+          });
+        }
+      }
+
+      // Toggle Event
+      $('#bboxToggle').change(function () {
+        const activeRow = $('.table-active');
+        if (activeRow.length > 0) {
+          const id = activeRow.data('id');
+          const selectedLog = defectLogs.find(log => log.id === id);
+          if (selectedLog) updateBBox(selectedLog.defects);
+        }
+      });
+
+      // Select first item by default
+      $('.defect-row').first().click();
+    });
+  </script>
+</body>
+
+</html>
