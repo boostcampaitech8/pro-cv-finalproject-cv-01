@@ -36,10 +36,8 @@ def main():
         config['data_path'] = resolved_path
     
     # --- Set Random Seed ---
-    from src.utils import set_seed
+    from src.utils import set_seed, setup_logging, increment_path
     set_seed(config.get('seed', 42))
-    print(f"Random seed set to: {config.get('seed', 42)}")
-    
     print(f"Random seed set to: {config.get('seed', 42)}")
     
     # --- Configure Ultralytics Settings ---
@@ -105,7 +103,24 @@ def main():
     config['project'] = runs_dir
     print(f"Set save project directory to: {runs_dir}")
     
-    save_dir = os.path.join(runs_dir, config['exp_name']) 
+    # --- Manual Directory Creation & Logging Setup ---
+    # We want to capture logs, so we need to know the folder BEFORE training starts.
+    # We manually handle the 'increment_path' logic here.
+    
+    initial_exp_name = config['exp_name']
+    base_save_dir = os.path.join(runs_dir, initial_exp_name)
+    
+    # Find a free directory (e.g. runs/baseline -> runs/baseline2)
+    save_dir = increment_path(Path(base_save_dir), exist_ok=False, mkdir=True)
+    save_dir = str(save_dir) # Convert to string
+    
+    # Update config with the ACTUAL name (e.g. 'baseline2') so YOLO uses this folder
+    # We extract the folder name from the full path
+    actual_exp_name = os.path.basename(save_dir)
+    config['exp_name'] = actual_exp_name
+    
+    # Setup Logging to 'runs/exp_name/console.log'
+    setup_logging(save_dir)
     
     try:
         # Train

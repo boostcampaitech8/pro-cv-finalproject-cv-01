@@ -153,7 +153,7 @@ class PCBTrainer:
             
             project=self.config.get('project', 'runs'),
             name=self.config['exp_name'], # Custom Experiment Name
-            exist_ok=False, 
+            exist_ok=True, 
             
             # Optimizer & Scheduling
             optimizer=self.config.get('optimizer', 'auto'),

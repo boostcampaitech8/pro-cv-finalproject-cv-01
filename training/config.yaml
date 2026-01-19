@@ -2,7 +2,7 @@
 
 # Experiment
 exp_name: "baseline_v8s"
-wandb_project: "pcb_defect_detection" # Leave empty to disable
+wandb_project: "" # Leave empty to disable
 seed: 42 # Random seed for reproducibility
 
 # Dynamic Module Selection
