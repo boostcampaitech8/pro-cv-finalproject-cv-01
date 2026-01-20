@@ -50,23 +50,50 @@ def get_model(config: Dict[str, Any]) -> YOLO:
 
     # Conv2d → QuantConv2d 수동 교체 (Ultralytics YOLO는 이미 만들어진 모델을 로드하므로
     # quant_modules.initialize()가 효과 없음. 따라서 수동으로 교체해야 함)
+    print("\n" + "="*60)
+    print("[QAT] Conv2d → QuantConv2d 교체 시작...")
+    print("="*60)
+
     try:
         from src.quantization import replace_conv_with_quantconv, disable_detect_head_quantization
 
         # 수동으로 Conv2d를 QuantConv2d로 교체
+        print("[QAT] replace_conv_with_quantconv() 호출 중...")
         replace_conv_with_quantconv(model.model, config)
 
         # Detect Head 양자화 비활성화 (정확도 확보)
+        print("[QAT] Detect Head 양자화 비활성화 중...")
         disable_detect_head_quantization(model.model)
 
+        # 교체 확인
+        from pytorch_quantization import nn as quant_nn
+        quantizer_count = sum(1 for m in model.model.modules() if isinstance(m, quant_nn.TensorQuantizer))
+        print(f"\n[QAT] ✅ 양자화 교체 완료!")
+        print(f"  - TensorQuantizer 개수: {quantizer_count}")
+
+        if quantizer_count == 0:
+            print(f"\n[QAT] ⚠️ 경고: TensorQuantizer가 생성되지 않았습니다!")
+            print(f"  이것은 심각한 문제입니다. QAT가 적용되지 않을 것입니다.")
+            raise RuntimeError("QAT 모듈 교체 실패: TensorQuantizer가 없음")
+
+        print("="*60 + "\n")
+
     except ImportError as e:
-        print(f"[QAT] 경고: pytorch-quantization을 찾을 수 없습니다.")
+        print(f"\n[QAT] ❌ ImportError: {e}")
+        print(f"  pytorch-quantization을 찾을 수 없습니다.")
         print(f"  설치: pip install pytorch-quantization --extra-index-url https://pypi.ngc.nvidia.com")
         print(f"  QAT 없이 일반 fine-tuning으로 진행합니다.")
+        print("="*60 + "\n")
     except Exception as e:
-        print(f"[QAT] 양자화 변환 오류: {e}")
+        print(f"\n[QAT] ❌ 양자화 변환 오류: {e}")
+        print(f"  이것은 심각한 문제입니다. 다음을 확인하세요:")
+        print(f"    1. pytorch-quantization 버전")
+        print(f"    2. PyTorch 버전 호환성")
+        print(f"    3. config_qat.yaml 설정")
         import traceback
         traceback.print_exc()
+        print("="*60 + "\n")
+        raise  # 에러를 다시 raise해서 학습 중단
 
     return model
 
