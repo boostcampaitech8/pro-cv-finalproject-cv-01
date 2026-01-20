@@ -14,4 +14,19 @@ dependencies = [
     "tqdm>=4.67.1",
     "ultralytics>=8.3.253",
     "wandb>=0.24.0",
+    # QAT (Quantization-Aware Training) 의존성
+    # NOTE: pytorch-quantization은 NVIDIA NGC 저장소에만 존재합니다.
+    # 수동 설치 필요: uv pip install pytorch-quantization --extra-index-url https://pypi.ngc.nvidia.com
+    "onnx>=1.14.0",
+    "onnxsim>=0.4.33",
 ]
+
+[project.optional-dependencies]
+qat = [
+    "pytorch-quantization>=2.1.3",
+]
+
+[[tool.uv.index]]
+name = "nvidia"
+url = "https://pypi.ngc.nvidia.com"
+explicit = true
