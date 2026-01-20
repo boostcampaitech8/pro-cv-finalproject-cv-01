@@ -173,14 +173,190 @@ class QATTrainer(PCBTrainer):
             except Exception as e:
                 print(f"[QAT] 양자화 활성화 실패: {e}")
 
+        # QAT Callback 등록 (best 모델 저장 시 Raw checkpoint 저장)
+        if self.qat_enabled:
+            self._register_qat_callback()
+
         # 부모 클래스의 train 호출 (PCBTrainer.train)
         save_dir = super().train(data_yaml)
 
-        # ONNX Export (학습 직후, 메모리 상의 모델 사용)
-        if save_dir:
-            self._export_onnx_from_memory(save_dir, data_yaml)
+        # 학습 완료 후 Raw checkpoint에서 ONNX export
+        if save_dir and self.qat_enabled:
+            self._export_onnx_from_raw_checkpoint(save_dir)
 
         return save_dir
+
+    def _register_qat_callback(self) -> None:
+        """
+        QAT Raw Checkpoint 저장 callback 등록.
+
+        best 모델이 업데이트될 때마다 Raw PyTorch checkpoint를 저장합니다.
+        이렇게 하면 TensorQuantizer 정보가 온전히 보존됩니다.
+        """
+        def on_fit_epoch_end(trainer):
+            """Epoch 종료 시 best 모델이면 Raw checkpoint 저장"""
+            try:
+                # best 모델이 업데이트되었는지 확인
+                # trainer.best_fitness가 현재 fitness와 같으면 best 업데이트됨
+                if not hasattr(trainer, 'best_fitness'):
+                    return
+
+                if not hasattr(trainer, 'fitness'):
+                    return
+
+                # Best 모델 업데이트 확인
+                is_best = (trainer.best_fitness == trainer.fitness)
+
+                if is_best:
+                    epoch = trainer.epoch if hasattr(trainer, 'epoch') else 'unknown'
+                    print(f"\n{'='*60}")
+                    print(f"[QAT] Best 모델 업데이트 감지! (Epoch {epoch})")
+                    print(f"{'='*60}")
+
+                    # TensorQuantizer 확인
+                    from pytorch_quantization import nn as quant_nn
+                    quantizer_count = sum(1 for m in self.model.model.modules()
+                                         if isinstance(m, quant_nn.TensorQuantizer))
+                    print(f"[QAT] TensorQuantizer 개수: {quantizer_count}")
+
+                    if quantizer_count == 0:
+                        print(f"[QAT] ⚠️ 경고: TensorQuantizer가 없습니다!")
+                        print(f"[QAT] 모델이 이미 변환되었을 수 있습니다.")
+
+                    # Raw checkpoint 저장 경로
+                    save_dir = trainer.save_dir if hasattr(trainer, 'save_dir') else self.config.get('project', './runs')
+                    weights_dir = os.path.join(save_dir, "weights")
+
+                    # 디렉토리 생성
+                    os.makedirs(weights_dir, exist_ok=True)
+
+                    raw_path = os.path.join(weights_dir, "best_qat_raw.pt")
+
+                    print(f"[QAT] Raw checkpoint 저장 중: {raw_path}")
+
+                    # 전체 모델 객체 저장 (TensorQuantizer 보존)
+                    torch.save({
+                        'model': self.model.model,  # 전체 모델 객체
+                        'epoch': epoch,
+                        'fitness': trainer.fitness if hasattr(trainer, 'fitness') else None,
+                        'best_fitness': trainer.best_fitness if hasattr(trainer, 'best_fitness') else None,
+                    }, raw_path)
+
+                    # 저장 확인
+                    if os.path.exists(raw_path):
+                        file_size = os.path.getsize(raw_path) / 1024 / 1024
+                        print(f"[QAT] ✅ Raw checkpoint 저장 완료!")
+                        print(f"  - 경로: {raw_path}")
+                        print(f"  - 크기: {file_size:.1f} MB")
+                        print(f"  - TensorQuantizer: {quantizer_count}개")
+                    else:
+                        print(f"[QAT] ❌ 저장 실패: 파일이 생성되지 않음")
+
+                    print(f"{'='*60}\n")
+
+            except Exception as e:
+                print(f"[QAT] ❌ Raw checkpoint 저장 실패: {e}")
+                import traceback
+                traceback.print_exc()
+
+        # Callback 등록
+        try:
+            self.model.add_callback("on_fit_epoch_end", on_fit_epoch_end)
+            print("[QAT] ✅ Raw checkpoint 저장 callback 등록 완료")
+        except Exception as e:
+            print(f"[QAT] ⚠️ Callback 등록 실패: {e}")
+            print(f"[QAT] 학습은 계속되지만 Raw checkpoint가 저장되지 않을 수 있습니다.")
+
+    def _export_onnx_from_raw_checkpoint(self, save_dir: Path) -> None:
+        """
+        학습 완료 후 Raw checkpoint에서 ONNX export.
+
+        Args:
+            save_dir: 학습 결과 저장 디렉토리
+        """
+        print(f"\n{'='*60}")
+        print(f"[QAT] Raw Checkpoint → ONNX Export")
+        print(f"{'='*60}")
+
+        raw_path = os.path.join(save_dir, "weights", "best_qat_raw.pt")
+        onnx_path = os.path.join(save_dir, "weights", "best_qat.onnx")
+
+        # Raw checkpoint 존재 확인
+        if not os.path.exists(raw_path):
+            print(f"[QAT] ⚠️ Raw checkpoint를 찾을 수 없음: {raw_path}")
+            print(f"[QAT] Callback이 실행되지 않았거나 저장에 실패했습니다.")
+            return
+
+        print(f"[QAT] Raw checkpoint 로드 중: {raw_path}")
+
+        try:
+            # Raw checkpoint 로드
+            checkpoint = torch.load(raw_path, map_location='cpu')
+
+            if isinstance(checkpoint, dict) and 'model' in checkpoint:
+                model = checkpoint['model']
+                epoch = checkpoint.get('epoch', 'unknown')
+                print(f"[QAT] Checkpoint 로드 완료 (Epoch {epoch})")
+            else:
+                model = checkpoint
+                print(f"[QAT] Checkpoint 로드 완료")
+
+            # TensorQuantizer 확인
+            from pytorch_quantization import nn as quant_nn
+            quantizer_count = sum(1 for m in model.modules()
+                                 if isinstance(m, quant_nn.TensorQuantizer))
+            print(f"[QAT] TensorQuantizer 개수: {quantizer_count}")
+
+            if quantizer_count == 0:
+                print(f"\n[QAT] ❌ TensorQuantizer가 없습니다!")
+                print(f"[QAT] Raw checkpoint에도 QAT 정보가 없습니다.")
+                print(f"[QAT] 학습 시 QAT가 제대로 적용되지 않았을 가능성이 있습니다.")
+                return
+
+            print(f"[QAT] ✅ TensorQuantizer 보존됨!")
+            print(f"\n[QAT] ONNX Export 시작...")
+
+            # ONNX export
+            from src.quantization import export_qat_to_onnx
+            export_qat_to_onnx(
+                model=model,
+                output_path=onnx_path,
+                config=self.config,
+                img_size=self.config.get('img_size', 640),
+            )
+
+            if os.path.exists(onnx_path):
+                file_size = os.path.getsize(onnx_path) / 1024 / 1024
+                print(f"\n[QAT] ✅ ONNX export 성공!")
+                print(f"  - 경로: {onnx_path}")
+                print(f"  - 크기: {file_size:.1f} MB")
+
+                # Q/DQ 노드 확인
+                try:
+                    import onnx
+                    onnx_model = onnx.load(onnx_path)
+                    qdq_count = {}
+                    for node in onnx_model.graph.node:
+                        if node.op_type in ['QuantizeLinear', 'DequantizeLinear']:
+                            qdq_count[node.op_type] = qdq_count.get(node.op_type, 0) + 1
+
+                    if qdq_count:
+                        print(f"\n[QAT] 🎉 Q/DQ 노드 발견!")
+                        for op, count in qdq_count.items():
+                            print(f"  - {op}: {count}개")
+                        print(f"\n[QAT] ✅ 엣지에서 calibration 불필요!")
+                    else:
+                        print(f"\n[QAT] ⚠️ Q/DQ 노드 없음")
+                        print(f"[QAT] ONNX export 과정에서 Q/DQ 노드가 손실되었을 수 있습니다.")
+                except Exception as e:
+                    print(f"[QAT] Q/DQ 노드 확인 실패: {e}")
+
+        except Exception as e:
+            print(f"\n[QAT] ❌ ONNX export 실패: {e}")
+            import traceback
+            traceback.print_exc()
+
+        print(f"{'='*60}\n")
 
     def _export_onnx_from_memory(self, save_dir: Path, data_yaml: str) -> None:
         """
