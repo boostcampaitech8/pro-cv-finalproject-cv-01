@@ -27,8 +27,9 @@ val_size: 0.2
 
 # QAT 전용 설정
 qat:
-  # Pre-trained 모델 경로 (일반 학습으로 생성된 best.pt)
-  pretrained_path: "./runs/baseline_v8s/weights/best.pt"
+  # Pre-trained 모델 경로
+  # Scratch QAT: COCO pretrained 모델로 처음부터 양자화 학습
+  pretrained_path: "yolov8s.pt"  # COCO pretrained (자동 다운로드)
 
   # Calibration 설정
   calibration:
@@ -43,11 +44,11 @@ qat:
     weight_per_channel: true  # 채널별 weight 양자화 (정확도 향상)
     skip_last_layers: true  # Detect Head 마지막 레이어 양자화 제외 (정확도 민감)
 
-  # Fine-tuning 설정
+  # 학습 설정 (Scratch QAT)
   finetune:
-    epochs: 30              # QAT fine-tuning 에폭
-    lr0: 0.0001             # 낮은 학습률 (pre-trained이므로)
-    lrf: 0.1                # 최종 LR = lr0 * lrf
+    epochs: 200             # Scratch QAT: 처음부터 학습
+    lr0: 0.001              # 일반 학습과 동일
+    lrf: 0.01               # 최종 LR = lr0 * lrf
 
   # ONNX Export 설정
   export:
@@ -55,40 +56,40 @@ qat:
     simplify: true          # onnxsim으로 최적화
     dynamic_batch: false    # 동적 배치 크기 (TensorRT용은 false 권장)
 
-# Training Control (Fine-tuning)
-epochs: 30                  # qat.finetune.epochs와 동일
+# Training Control (Scratch QAT)
+epochs: 200                 # Scratch QAT: 처음부터 학습
 batch_size: 8               # 메모리 문제로 감소 (16 -> 8)
 img_size: 640
-patience: 15                # Early stopping patience (QAT는 빠르게 수렴)
+patience: 30                # Early stopping patience
 save: true
 save_period: -1
 
-# Optimizer
+# Optimizer (일반 학습과 동일)
 optimizer: 'AdamW'
-lr0: 0.0001                 # qat.finetune.lr0과 동일
+lr0: 0.001                  # 일반 학습과 동일
 momentum: 0.937
 weight_decay: 0.0005
 
 # Scheduler
 scheduler_type: 'cosine'
-lrf: 0.1
+lrf: 0.01
 
 # Loss Gains (기존과 동일)
 box: 7.5
 cls: 0.5
 dfl: 1.5
 
-# Augmentation (QAT fine-tuning에서는 약하게 설정)
+# Augmentation (일반 학습과 동일)
 hsv_h: 0.015
-hsv_s: 0.4                  # 감소
-hsv_v: 0.3                  # 감소
+hsv_s: 0.7
+hsv_v: 0.4
 degrees: 0.0
 translate: 0.1
-scale: 0.3                  # 감소
+scale: 0.5
 shear: 0.0
 perspective: 0.0
 flipud: 0.0
 fliplr: 0.5
-mosaic: 0.5                 # 감소
+mosaic: 1.0
 mixup: 0.0
 copy_paste: 0.0
