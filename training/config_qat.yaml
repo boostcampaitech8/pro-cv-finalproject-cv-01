@@ -32,7 +32,7 @@ qat:
 
   # Calibration 설정
   calibration:
-    num_batches: 100        # Calibration에 사용할 배치 수
+    num_batches: 65         # 전체 train 데이터 사용 (483장 / 8 = ~61 배치)
     method: "histogram"     # 'histogram' 또는 'max'
 
   # 양자화 설정

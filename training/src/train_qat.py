@@ -131,6 +131,7 @@ class QATTrainer(PCBTrainer):
 
         dataset = YOLODataset(
             img_path=train_path,
+            data=data,  # data.yaml 설정 (필수)
             imgsz=img_size,
             batch_size=batch_size,
             augment=False,
