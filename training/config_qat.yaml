@@ -52,7 +52,7 @@ qat:
 
   # ONNX Export 설정
   export:
-    opset: 17               # ONNX opset 버전
+    opset: 13               # ONNX opset 버전 (pytorch-quantization 권장)
     simplify: true          # onnxsim으로 최적화
     dynamic_batch: false    # 동적 배치 크기 (TensorRT용은 false 권장)
 
