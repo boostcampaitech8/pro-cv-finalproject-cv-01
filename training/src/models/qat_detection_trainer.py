@@ -204,7 +204,7 @@ class QATDetectionTrainer(DetectionTrainer):
         FP32 그대로 저장하여 precision 손실을 막습니다.
         """
         from copy import deepcopy
-        from ultralytics.utils.torch_utils import de_parallel
+        from ultralytics.utils.torch_utils import unwrap_model
         from ultralytics import __version__
         from datetime import datetime
         import pandas as pd
@@ -221,8 +221,8 @@ class QATDetectionTrainer(DetectionTrainer):
         ckpt = {
             'epoch': self.epoch,
             'best_fitness': self.best_fitness,
-            'model': deepcopy(de_parallel(self.model)),  # ← .half() 제거!
-            'ema': deepcopy(self.ema.ema) if self.ema else None,  # ← .half() 제거!
+            'model': deepcopy(unwrap_model(self.model)),  # ← .half() 제거!
+            'ema': deepcopy(unwrap_model(self.ema.ema)) if self.ema else None,  # ← .half() 제거!
             'updates': self.ema.updates if self.ema else None,
             'optimizer': self.optimizer.state_dict(),
             'train_args': vars(self.args),
