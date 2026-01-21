@@ -157,6 +157,7 @@ def run_qat_training(config: Dict[str, Any], data_yaml: str) -> Optional[Path]:
 
         # Ultralytics 형식 args 준비
         train_args = {
+            'model': 'yolov8s.yaml',  # 트레이너 초기화용 (나중에 QAT 모델로 교체)
             'data': data_yaml,
             'epochs': 20,
             'batch': config.get('batch_size', 8),
