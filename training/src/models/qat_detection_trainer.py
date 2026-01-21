@@ -32,7 +32,9 @@ class QATDetectionTrainer(DetectionTrainer):
             overrides: 설정 오버라이드
             _callbacks: Callback 함수들
         """
-        super().__init__(cfg=cfg, overrides=overrides, _callbacks=_callbacks)
+        # cfg=None을 명시적으로 전달하면 get_cfg에서 에러 발생
+        # 키워드 인자 없이 위치 인자로 전달
+        super().__init__(cfg, overrides, _callbacks)
 
         # QAT 전용 하이퍼파라미터 (기사의 검증된 값)
         self.qat_epochs = 20
