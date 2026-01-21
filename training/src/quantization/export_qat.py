@@ -150,13 +150,13 @@ def _export_nvidia_tensorrt_style(
     simplify: bool
 ) -> bool:
     """
-    NVIDIA TensorRT 방식 ONNX export (참조 리포지토리 + 공식 문서).
+    NVIDIA TensorRT 방식 ONNX export (참조 리포지토리).
 
-    핵심 개선사항:
+    mmsori/yolov8-QAT 방식 (pytorch_quantization 2.1.2 호환):
     1. use_fb_fake_quant = True 설정 (PyTorch fake quantization 사용)
-    2. enable_onnx_export() 컨텍스트 매니저 사용 (NVIDIA 공식)
-    3. enable_onnx_checker=False 설정 (quantized model 필수)
-    4. Detect 레이어 export 모드 활성화
+    2. Detect 레이어 export 모드 활성화
+    3. torch.onnx.export 직접 호출 (enable_onnx_export 불필요)
+    4. enable_onnx_checker=False 설정
 
     Args:
         model: QAT 모델
@@ -171,7 +171,6 @@ def _export_nvidia_tensorrt_style(
     try:
         from pytorch_quantization import nn as quant_nn
         from ultralytics.nn.modules import Detect
-        import pytorch_quantization
 
         # 1. PyTorch fake quantization 활성화
         print("  - use_fb_fake_quant 활성화...")
@@ -185,28 +184,27 @@ def _export_nvidia_tensorrt_style(
                 m.format = 'onnx'
                 print(f"    ✓ {m.__class__.__name__} export=True, format=onnx")
 
-        # 3. enable_onnx_export 컨텍스트에서 ONNX export
-        print(f"  - ONNX export with enable_onnx_export() (opset={opset})...")
+        # 3. torch.onnx.export 직접 호출
+        print(f"  - torch.onnx.export 실행 (opset={opset})...")
 
         input_names = ["images"]
         output_names = ["output0"]
 
-        with pytorch_quantization.enable_onnx_export():
-            torch.onnx.export(
-                model,
-                dummy_input,
-                output_path,
-                verbose=False,
-                opset_version=opset,
-                input_names=input_names,
-                output_names=output_names,
-                dynamic_axes={
-                    'images': {0: 'batch'},
-                    'output0': {0: 'batch'}
-                },
-                do_constant_folding=True,
-                enable_onnx_checker=False  # quantized model 필수 설정
-            )
+        torch.onnx.export(
+            model,
+            dummy_input,
+            output_path,
+            verbose=False,
+            opset_version=opset,
+            input_names=input_names,
+            output_names=output_names,
+            dynamic_axes={
+                'images': {0: 'batch'},
+                'output0': {0: 'batch'}
+            },
+            do_constant_folding=True,
+            enable_onnx_checker=False  # quantized model 필수 설정
+        )
 
         # 4. 플래그 원상복구
         quant_nn.TensorQuantizer.use_fb_fake_quant = False
