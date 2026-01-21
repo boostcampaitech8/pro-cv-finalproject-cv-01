@@ -1,17 +1,14 @@
 """
 QAT용 커스텀 DetectionTrainer
 
-Medium 기사 방법론:
 - Ultralytics DetectionTrainer를 직접 상속
 - _setup_train() 오버라이드로 QAT 전용 설정 적용
 - warmup_epochs = 0, amp = False, CosineAnnealingLR 스케줄러
-
-참고: https://medium.com/@MaroJEON/quantization-achieve-accuracy-drop-to-near-zero-yolov8-qat-x2-speed-up-on-your-jetson-orin-2b99819775e4
 """
 
-import torch
 import torch.optim as optim
 from ultralytics.models.yolo.detect import DetectionTrainer
+from ultralytics.utils import DEFAULT_CFG_DICT
 
 
 class QATDetectionTrainer(DetectionTrainer):
@@ -21,22 +18,24 @@ class QATDetectionTrainer(DetectionTrainer):
     _setup_train()을 오버라이드하여 QAT 전용 설정을 적용합니다:
     - warmup_epochs = 0 (QAT는 warmup 불필요)
     - amp = False (AMP는 Q/DQ 노드와 충돌)
-    - CosineAnnealingLR 스케줄러 (Medium 기사 검증됨)
+    - CosineAnnealingLR 스케줄러
     - 낮은 learning rate (원래 lr의 1/100)
     """
 
     def __init__(self, cfg=None, overrides=None, _callbacks=None):
         """
         Args:
-            cfg: 설정 파일 경로 또는 딕셔너리
-            overrides: 설정 오버라이드
+            cfg: 기본 설정 딕셔너리 (None이면 DEFAULT_CFG_DICT 사용)
+            overrides: 설정 오버라이드 (train_args 딕셔너리)
             _callbacks: Callback 함수들
         """
-        # cfg=None을 명시적으로 전달하면 get_cfg에서 에러 발생
-        # 키워드 인자 없이 위치 인자로 전달
-        super().__init__(cfg, overrides, _callbacks)
+        # cfg가 None이면 기본 설정 사용
+        if cfg is None:
+            cfg = DEFAULT_CFG_DICT.copy()
 
-        # QAT 전용 하이퍼파라미터 (기사의 검증된 값)
+        super().__init__(cfg=cfg, overrides=overrides, _callbacks=_callbacks)
+
+        # QAT 전용 하이퍼파라미터
         self.qat_epochs = 20
         self.qat_lr = 0.0001  # 원래 lr의 1/100 정도
 
@@ -76,8 +75,7 @@ class QATDetectionTrainer(DetectionTrainer):
         print(f"[QAT] epochs: {self.epochs}")
         print(f"[QAT] lr0: {self.args.lr0}")
 
-        # 4. CosineAnnealingLR 스케줄러로 교체 (Medium 기사 검증됨)
-        # 기존 스케줄러를 덮어씀
+        # 4. CosineAnnealingLR 스케줄러로 교체
         self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
             self.optimizer,
             T_max=self.epochs * 1.0,

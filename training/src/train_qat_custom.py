@@ -1,14 +1,12 @@
 """
-QAT 학습 스크립트 (Medium 기사 방법론)
+QAT 학습 스크립트
 
-Medium 기사 워크플로우:
+워크플로우:
 1. 일반 모델 로드 (pre-trained best.pt)
 2. Q/DQ 노드 추가 (Conv2d → QuantConv2d)
-3. Calibration (MSE, 1024 batch, train loader)
+3. Calibration (MSE, train loader)
 4. 커스텀 트레이너로 QAT fine-tuning (20 epochs, warmup=0, amp=False, CosineAnnealingLR)
 5. ONNX export (Q/DQ 노드 포함)
-
-참고: https://medium.com/@MaroJEON/quantization-achieve-accuracy-drop-to-near-zero-yolov8-qat-x2-speed-up-on-your-jetson-orin-2b99819775e4
 """
 
 import os
@@ -27,7 +25,7 @@ from ultralytics import YOLO
 
 def run_qat_training(config: Dict[str, Any], data_yaml: str) -> Optional[Path]:
     """
-    Medium 기사 방법론으로 QAT 학습 수행.
+    QAT 학습 수행.
 
     Args:
         config: QAT 설정 (config_qat.yaml)
@@ -37,7 +35,7 @@ def run_qat_training(config: Dict[str, Any], data_yaml: str) -> Optional[Path]:
         학습 결과 저장 디렉토리
     """
     print("\n" + "="*80)
-    print("QAT Training (Medium 기사 방법론)")
+    print("QAT Training")
     print("="*80 + "\n")
 
     # ========================================================================
@@ -160,7 +158,7 @@ def run_qat_training(config: Dict[str, Any], data_yaml: str) -> Optional[Path]:
         # Ultralytics 형식 args 준비
         train_args = {
             'data': data_yaml,
-            'epochs': 20,  # Medium 기사: 20 epochs
+            'epochs': 20,
             'batch': config.get('batch_size', 8),
             'imgsz': config.get('img_size', 640),
             'device': device,
@@ -170,7 +168,7 @@ def run_qat_training(config: Dict[str, Any], data_yaml: str) -> Optional[Path]:
             'exist_ok': True,
             'pretrained': False,  # 이미 로드된 모델 사용
             'optimizer': config.get('optimizer', 'AdamW'),
-            'lr0': 0.0001,  # Medium 기사: 0.0001 (원래 lr의 1/100)
+            'lr0': 0.0001,  # 원래 lr의 1/100
             'lrf': 0.01,
             'momentum': config.get('momentum', 0.937),
             'weight_decay': config.get('weight_decay', 0.0005),
@@ -362,7 +360,7 @@ if __name__ == "__main__":
     import argparse
     import yaml
 
-    parser = argparse.ArgumentParser(description='QAT Training (Medium 기사 방법론)')
+    parser = argparse.ArgumentParser(description='QAT Training')
     parser.add_argument('--config', type=str, default='config_qat.yaml', help='Config file path')
     parser.add_argument('--data', type=str, default=None, help='Data yaml path (optional)')
     args = parser.parse_args()
