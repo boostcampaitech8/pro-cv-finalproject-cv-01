@@ -194,6 +194,7 @@ def _export_nvidia_tensorrt_style(
             model,
             dummy_input,
             output_path,
+            dynamo=False,  # torch.export.export 우회 (pytorch_quantization 호환)
             verbose=False,
             opset_version=opset,
             input_names=input_names,
