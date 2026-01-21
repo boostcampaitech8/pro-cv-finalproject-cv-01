@@ -449,3 +449,128 @@ def get_calibration_dataloader(
     )
 
     return dataloader
+
+
+def save_quantizer_state(model: nn.Module) -> Dict[str, Any]:
+    """
+    TensorQuantizer 상태를 딕셔너리로 저장.
+
+    Checkpoint 저장 시 TensorQuantizer의 중요한 정보(scale, amax 등)를
+    함께 저장하여 나중에 복원할 수 있도록 합니다.
+
+    Args:
+        model: QAT 모델 (TensorQuantizer 포함)
+
+    Returns:
+        {
+            'quantizer_count': int,
+            'quantizers': {
+                'module.path.name': {
+                    'num_bits': int,
+                    'amax': Tensor,
+                    'scale': Tensor,
+                    'is_enabled': bool,
+                    ...
+                }
+            }
+        }
+    """
+    try:
+        from pytorch_quantization import nn as quant_nn
+    except ImportError:
+        return {'quantizer_count': 0, 'quantizers': {}}
+
+    quantizer_state = {
+        'quantizer_count': 0,
+        'quantizers': {}
+    }
+
+    # 모든 TensorQuantizer를 찾아서 상태 저장
+    for name, module in model.named_modules():
+        if isinstance(module, quant_nn.TensorQuantizer):
+            state = {
+                'num_bits': module._num_bits,
+                'is_enabled': module._disabled is False,  # enabled = not disabled
+            }
+
+            # amax (activation max) 저장
+            if hasattr(module, '_amax') and module._amax is not None:
+                state['amax'] = module._amax.detach().cpu()
+
+            # scale 저장 (있는 경우)
+            if hasattr(module, '_scale') and module._scale is not None:
+                state['scale'] = module._scale.detach().cpu()
+
+            # unsigned 여부 저장
+            if hasattr(module, '_unsigned'):
+                state['unsigned'] = module._unsigned
+
+            # narrow_range 저장
+            if hasattr(module, '_narrow_range'):
+                state['narrow_range'] = module._narrow_range
+
+            quantizer_state['quantizers'][name] = state
+            quantizer_state['quantizer_count'] += 1
+
+    return quantizer_state
+
+
+def restore_quantizer_state(model: nn.Module, state: Dict[str, Any]) -> None:
+    """
+    저장된 TensorQuantizer 상태를 모델에 복원.
+
+    Checkpoint에서 로드된 TensorQuantizer 정보를 모델에 다시 적용합니다.
+
+    Args:
+        model: QAT 모델 (TensorQuantizer 포함)
+        state: save_quantizer_state()로 저장한 상태
+    """
+    try:
+        from pytorch_quantization import nn as quant_nn
+    except ImportError:
+        print("[QAT] pytorch-quantization 미설치, TensorQuantizer 복원 건너뜀")
+        return
+
+    if not state or 'quantizers' not in state:
+        print("[QAT] ⚠️ 빈 quantizer state, 복원 건너뜀")
+        return
+
+    restored_count = 0
+    quantizers_in_state = state['quantizers']
+
+    # 모델의 모든 TensorQuantizer를 찾아서 상태 복원
+    for name, module in model.named_modules():
+        if isinstance(module, quant_nn.TensorQuantizer):
+            if name in quantizers_in_state:
+                quantizer_state = quantizers_in_state[name]
+
+                # amax 복원
+                if 'amax' in quantizer_state:
+                    amax = quantizer_state['amax']
+                    if isinstance(amax, torch.Tensor):
+                        module._amax = amax.to(module._amax.device if module._amax is not None else 'cpu')
+
+                # scale 복원
+                if 'scale' in quantizer_state:
+                    scale = quantizer_state['scale']
+                    if isinstance(scale, torch.Tensor) and hasattr(module, '_scale'):
+                        module._scale = scale.to(module._scale.device if module._scale is not None else 'cpu')
+
+                # enabled 상태 복원
+                if 'is_enabled' in quantizer_state:
+                    if quantizer_state['is_enabled']:
+                        module.enable()
+                    else:
+                        module.disable()
+
+                # unsigned 복원
+                if 'unsigned' in quantizer_state and hasattr(module, '_unsigned'):
+                    module._unsigned = quantizer_state['unsigned']
+
+                # narrow_range 복원
+                if 'narrow_range' in quantizer_state and hasattr(module, '_narrow_range'):
+                    module._narrow_range = quantizer_state['narrow_range']
+
+                restored_count += 1
+
+    print(f"[QAT] TensorQuantizer 복원 완료: {restored_count}/{state['quantizer_count']}개")

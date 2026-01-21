@@ -43,7 +43,8 @@ def export_qat_to_onnx(
     qat_config = config.get('qat', {})
     export_config = qat_config.get('export', {})
 
-    opset = export_config.get('opset', 17)
+    # Opset 13으로 낮춤 (더 안정적, TensorRT 호환성 향상)
+    opset = export_config.get('opset', 13)
     simplify = export_config.get('simplify', True)
     dynamic_batch = export_config.get('dynamic_batch', False)
 
@@ -58,6 +59,17 @@ def export_qat_to_onnx(
 
     # Q/DQ 노드를 ONNX에 포함시키기 위한 설정
     quant_nn.TensorQuantizer.use_fb_fake_quant = True
+
+    # TensorQuantizer를 inference mode로 설정 (calibration 비활성화)
+    print("[QAT] TensorQuantizer를 inference mode로 설정 중...")
+    for name, module in model.named_modules():
+        if isinstance(module, quant_nn.TensorQuantizer):
+            # Calibration 비활성화 -> Inference 활성화
+            if module._calibrator is not None:
+                module.disable_calib()
+            module.enable_quant()
+            module.enable()
+    print("[QAT] ✅ TensorQuantizer inference mode 설정 완료")
 
     # 더미 입력 생성
     dummy_input = torch.randn(batch_size, 3, img_size, img_size, device=device)
@@ -84,9 +96,10 @@ def export_qat_to_onnx(
             do_constant_folding=True,
             verbose=False,
         )
-        print(f"[QAT] ONNX 기본 export 완료: {output_path}")
+        print(f"[QAT] ✅ ONNX 기본 export 완료: {output_path}")
     except Exception as e:
-        print(f"[QAT] ONNX export 실패: {e}")
+        print(f"[QAT] ❌ torch.onnx.export 실패: {e}")
+        print(f"  Fallback: ultralytics 내장 export 시도...")
         # Fallback: ultralytics 내장 export 사용
         return _export_via_ultralytics(model, output_path, config, img_size)
 

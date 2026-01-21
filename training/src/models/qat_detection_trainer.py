@@ -6,7 +6,9 @@ QAT용 커스텀 DetectionTrainer
 - warmup_epochs = 0, amp = False, CosineAnnealingLR 스케줄러
 """
 
+import torch
 import torch.optim as optim
+from pathlib import Path
 from ultralytics.models.yolo.detect import DetectionTrainer
 from ultralytics.utils import DEFAULT_CFG_DICT
 
@@ -104,10 +106,10 @@ class QATDetectionTrainer(DetectionTrainer):
 
     def get_model(self, cfg=None, weights=None, verbose=True):
         """
-        모델 로드.
+        모델 로드 (QAT checkpoint에서 TensorQuantizer 복원).
 
-        부모 클래스의 get_model()을 그대로 사용하지만,
-        QAT 모델이 이미 준비되어 있어야 합니다.
+        부모 클래스의 get_model()을 호출한 후,
+        checkpoint에 저장된 TensorQuantizer 상태를 복원합니다.
 
         Args:
             cfg: 모델 config
@@ -119,16 +121,67 @@ class QATDetectionTrainer(DetectionTrainer):
         """
         model = super().get_model(cfg=cfg, weights=weights, verbose=verbose)
 
-        # TensorQuantizer 확인 로그
+        # Checkpoint에서 quantizer 상태 복원
+        if weights and Path(weights).exists():
+            try:
+                checkpoint = torch.load(weights, map_location='cpu')
+
+                if 'quantizer_state' in checkpoint:
+                    from src.quantization.qat_utils import restore_quantizer_state
+
+                    restore_quantizer_state(model, checkpoint['quantizer_state'])
+                    print(f"[QAT] ✅ TensorQuantizer 복원 완료: {checkpoint['quantizer_state']['quantizer_count']}개")
+                else:
+                    print(f"[QAT] ⚠️ Checkpoint에 quantizer_state 없음 (일반 checkpoint)")
+            except Exception as e:
+                print(f"[QAT] ⚠️ TensorQuantizer 복원 실패: {e}")
+
+        # TensorQuantizer 개수 확인
         try:
             from pytorch_quantization import nn as quant_nn
             quantizer_count = sum(1 for m in model.modules()
                                  if isinstance(m, quant_nn.TensorQuantizer))
             print(f"[QAT] 모델 로드 완료 - TensorQuantizer: {quantizer_count}개")
+
+            if quantizer_count == 0:
+                print(f"[QAT] ⚠️ 경고: TensorQuantizer가 없습니다!")
+                print(f"  모델이 QAT용으로 준비되지 않았을 수 있습니다.")
+            else:
+                print(f"[QAT] ✅ TensorQuantizer 확인됨!")
         except ImportError:
             pass
 
         return model
+
+    def save_model(self):
+        """
+        QAT 모델 저장 (TensorQuantizer 정보 포함).
+
+        부모 클래스의 save_model()을 호출한 후,
+        TensorQuantizer 메타데이터를 별도로 저장합니다.
+        이를 통해 best checkpoint validation 시 메트릭이 0이 되는 문제를 방지합니다.
+        """
+        # 부모 클래스의 save_model() 호출
+        super().save_model()
+
+        # TensorQuantizer 상태 저장
+        from src.quantization.qat_utils import save_quantizer_state
+
+        quantizer_state = save_quantizer_state(self.model)
+
+        # Best checkpoint 파일에 quantizer 정보 추가
+        # DetectionTrainer는 best.pt와 last.pt를 저장함
+        for ckpt_attr in ['best', 'last']:
+            if hasattr(self, ckpt_attr):
+                ckpt_path = getattr(self, ckpt_attr)
+                if ckpt_path and ckpt_path.exists():
+                    try:
+                        checkpoint = torch.load(ckpt_path, map_location='cpu')
+                        checkpoint['quantizer_state'] = quantizer_state
+                        torch.save(checkpoint, ckpt_path)
+                        print(f"[QAT] TensorQuantizer 상태 저장 완료: {ckpt_path.name} ({quantizer_state['quantizer_count']}개)")
+                    except Exception as e:
+                        print(f"[QAT] ⚠️ {ckpt_path.name} TensorQuantizer 저장 실패: {e}")
 
     def optimizer_step(self):
         """

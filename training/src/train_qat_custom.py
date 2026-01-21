@@ -212,9 +212,36 @@ def run_qat_training(config: Dict[str, Any], data_yaml: str) -> Optional[Path]:
         raise
 
     # ========================================================================
-    # 5. ONNX Export (Q/DQ 노드 포함)
+    # 5. Best Checkpoint 검증
     # ========================================================================
-    print("\n[5/5] ONNX Export (Q/DQ 노드 포함)...")
+    print("\n[5/6] Best Checkpoint 검증...")
+    print("-"*80)
+
+    # Best checkpoint 로드 후 TensorQuantizer 확인
+    best_ckpt = save_dir / "weights" / "best.pt"
+
+    if best_ckpt.exists():
+        try:
+            # Checkpoint 로드
+            checkpoint = torch.load(str(best_ckpt), map_location='cpu')
+
+            # TensorQuantizer 상태 확인
+            if 'quantizer_state' in checkpoint:
+                quantizer_count = checkpoint['quantizer_state']['quantizer_count']
+                print(f"[QAT] ✅ Best checkpoint에 TensorQuantizer 정보 있음: {quantizer_count}개")
+            else:
+                print(f"[QAT] ❌ Best checkpoint에 TensorQuantizer 정보 없음!")
+                print(f"  QATDetectionTrainer.save_model()이 제대로 동작하지 않았을 수 있습니다.")
+                print(f"  Best checkpoint validation 시 메트릭이 0이 될 수 있습니다.")
+        except Exception as e:
+            print(f"[QAT] ⚠️ Best checkpoint 로드 실패: {e}")
+    else:
+        print(f"[QAT] ❌ Best checkpoint 없음: {best_ckpt}")
+
+    # ========================================================================
+    # 6. ONNX Export (Q/DQ 노드 포함)
+    # ========================================================================
+    print("\n[6/6] ONNX Export (Q/DQ 노드 포함)...")
     print("-"*80)
 
     try:
