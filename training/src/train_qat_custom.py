@@ -17,6 +17,11 @@ import torch
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+# Add training directory to Python path
+# training/src/train_qat_custom.py에서 실행되므로 부모의 부모 디렉토리를 추가
+training_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(training_dir))
+
 from ultralytics import YOLO
 
 
