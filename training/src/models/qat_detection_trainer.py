@@ -144,14 +144,11 @@ class QATDetectionTrainer(DetectionTrainer):
         # batch 단위로 업데이트할 수도 있음 (선택사항)
         # self.scheduler.step()  # 이미 부모 클래스에서 호출됨
 
-    def _do_train(self, world_size=1):
+    def _do_train(self):
         """
         실제 학습 루프 수행.
 
         부모 클래스의 _do_train()을 그대로 사용합니다.
         QAT 설정은 _setup_train()에서 이미 적용되었습니다.
-
-        Args:
-            world_size: 분산 학습 world size
         """
-        return super()._do_train(world_size=world_size)
+        return super()._do_train()
