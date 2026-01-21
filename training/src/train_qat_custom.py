@@ -223,7 +223,7 @@ def run_qat_training(config: Dict[str, Any], data_yaml: str) -> Optional[Path]:
     if best_ckpt.exists():
         try:
             # Checkpoint 로드
-            checkpoint = torch.load(str(best_ckpt), map_location='cpu')
+            checkpoint = torch.load(str(best_ckpt), map_location='cpu', weights_only=False)
 
             # TensorQuantizer 상태 확인
             if 'quantizer_state' in checkpoint:

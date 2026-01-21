@@ -291,7 +291,7 @@ class QATTrainer(PCBTrainer):
 
         try:
             # Raw checkpoint 로드
-            checkpoint = torch.load(raw_path, map_location='cpu')
+            checkpoint = torch.load(raw_path, map_location='cpu', weights_only=False)
 
             if isinstance(checkpoint, dict) and 'model' in checkpoint:
                 model = checkpoint['model']

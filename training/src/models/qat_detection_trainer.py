@@ -124,7 +124,7 @@ class QATDetectionTrainer(DetectionTrainer):
         # Checkpoint에서 quantizer 상태 복원
         if weights and Path(weights).exists():
             try:
-                checkpoint = torch.load(weights, map_location='cpu')
+                checkpoint = torch.load(weights, map_location='cpu', weights_only=False)
 
                 if 'quantizer_state' in checkpoint:
                     from src.quantization.qat_utils import restore_quantizer_state
@@ -176,7 +176,7 @@ class QATDetectionTrainer(DetectionTrainer):
                 ckpt_path = getattr(self, ckpt_attr)
                 if ckpt_path and ckpt_path.exists():
                     try:
-                        checkpoint = torch.load(ckpt_path, map_location='cpu')
+                        checkpoint = torch.load(ckpt_path, map_location='cpu', weights_only=False)
                         checkpoint['quantizer_state'] = quantizer_state
                         torch.save(checkpoint, ckpt_path)
                         print(f"[QAT] TensorQuantizer 상태 저장 완료: {ckpt_path.name} ({quantizer_state['quantizer_count']}개)")
