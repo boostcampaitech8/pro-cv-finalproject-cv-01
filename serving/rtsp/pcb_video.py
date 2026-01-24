@@ -7,7 +7,7 @@ from tqdm import tqdm
 def create_premium_pcb_video():
     # --- [1. CONFIGURATION] ---
     WIDTH, HEIGHT = 1920, 1080 # Full HD for premium feel
-    FPS = 60                   # Smooth 60fps
+    FPS = 30                   # Smooth 60fps
     MOVE_SPEED = 12            # Pixels per frame
     GAP = 500                  # Gap between PCBs
     
@@ -15,10 +15,11 @@ def create_premium_pcb_video():
     NOISE_LEVEL = 3            # Subtle ISO noise
     SHADOW_BLUR = 45          # Drop shadow spread
     SHADOW_OPACITY = 0.6       # Shadow intensity
-    VIGNETTE_STRENGTH = 0.4    # Edge darkening
+    VIGNETTE_STRENGTH = 0.25   # Reduced for a cleaner look
+    BOTTOM_SHADING_STRENGTH = 0.15 # Subtle darkening at the bottom
     
-    ROOT_DIR = '/data/ephemeral/home/rtsp'
-    OUTPUT_NAME = os.path.join(ROOT_DIR, 'PCB_Conveyor.mp4')
+    ROOT_DIR = '/data/ephemeral/home/ss/serving/rtsp'
+    OUTPUT_NAME = os.path.join(ROOT_DIR, 'PCB_Conveyor_30fps.mp4')
     
     # --- [2. SEARCH IMAGES] ---
     # Only look inside the 'images' folder to avoid picking up temp files or outputs
@@ -140,10 +141,19 @@ def create_premium_pcb_video():
         # Aesthetic: Vignette
         frame = (frame.astype(float) * vignette).astype(np.uint8)
         
-        # Aesthetic: Lighting (Top-down highlight)
-        light = np.zeros_like(frame, dtype=np.float32)
-        cv2.line(light, (0, 0), (WIDTH, 0), (30, 30, 35), 400) # Soft top glow
-        frame = cv2.add(frame, light.astype(np.uint8))
+        # Aesthetic: Lighting (Smooth Top Glow)
+        top_glow_h = HEIGHT // 2
+        y_top = np.linspace(1.0, 0.0, top_glow_h).reshape(top_glow_h, 1, 1)
+        top_glow = (y_top * [30, 30, 35]).astype(np.uint8)
+        # Use numpy addition with clipping for saturation
+        frame[:top_glow_h, :] = np.clip(frame[:top_glow_h, :].astype(np.int16) + top_glow, 0, 255).astype(np.uint8)
+        
+        # Aesthetic: Soft Bottom Shading (Center to Bottom)
+        # Natural transition from center (no shading) to bottom
+        shading_h = HEIGHT // 2
+        y_bottom = np.linspace(0.0, 1.0, shading_h).reshape(shading_h, 1, 1)
+        shading_mask = 1.0 - (y_bottom * BOTTOM_SHADING_STRENGTH)
+        frame[HEIGHT//2:, :] = (frame[HEIGHT//2:, :].astype(float) * shading_mask).astype(np.uint8)
         
         # Aesthetic: Low-level noise for film grain feel
         grain = np.random.normal(0, NOISE_LEVEL, (HEIGHT, WIDTH, 3)).astype(np.int8)
