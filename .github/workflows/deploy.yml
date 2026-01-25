@@ -1,0 +1,52 @@
+# 백엔드 EC2 자동 배포 워크플로우
+# feat/GA 브랜치에 push 시 EC2 서버에 자동 배포
+name: Deploy Backend to EC2
+
+on:
+  push:
+    branches:
+      - feat/GA  # 테스트 후 main 또는 dev로 변경
+    paths:
+      - 'serving/api/**'  # 백엔드 코드 변경 시에만 실행
+  workflow_dispatch:  # 수동 실행 가능
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # PATH 설정
+            export PATH="$HOME/.local/bin:$PATH"
+
+            # 최신 코드 가져오기
+            cd ~/pro-cv-finalproject-cv-01
+            git fetch origin
+            git checkout dev
+            git pull origin dev
+
+            # 의존성 설치
+            cd serving/api
+            uv sync
+
+            # 기존 프로세스 종료
+            pkill -f "uvicorn.*8080" || true
+            sleep 2
+
+            # 서버 재시작 (백그라운드)
+            nohup uv run uvicorn main:app --host 0.0.0.0 --port 8080 > server.log 2>&1 &
+            sleep 5
+
+            # 헬스체크
+            if curl -s http://localhost:8080/stats > /dev/null; then
+              echo "✅ 배포 성공"
+            else
+              echo "❌ 헬스체크 실패"
+              exit 1
+            fi
