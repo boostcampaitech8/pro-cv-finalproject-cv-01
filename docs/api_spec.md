@@ -138,7 +138,7 @@ CREATE TABLE inspection_logs (
     detections TEXT,                   -- JSON 배열: [{"defect_type": "", "confidence": 0.0, "bbox": []}]
     image_path TEXT                    -- 불량 이미지 저장 경로
 )
-
+```
 
 | 모델명 | 분류 | 용도 | 주요 필드 |
 | :--- | :--- | :--- | :--- |
