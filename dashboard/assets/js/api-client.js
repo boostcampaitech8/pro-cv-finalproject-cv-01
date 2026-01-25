@@ -317,7 +317,13 @@ const DashboardUpdater = {
         // items is array of objects with 'confidence'
         // Take last 10
         const recent = items.slice(0, 10);
-        const data = recent.map(item => item.confidence);
+        const data = recent.map(item => {
+            if (item.detections && item.detections.length > 0) {
+                // Use the confidence of the first detection or max
+                return item.detections[0].confidence;
+            }
+            return 0;
+        });
         const labels = recent.map((_, i) => `Defect ${i + 1}`); // Simple labels
 
         this.charts.confidence.data.labels = labels;
