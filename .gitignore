@@ -1,0 +1,5 @@
+node_modules/
+dist/
+dashboard/dist/
+.DS_Store
+.env

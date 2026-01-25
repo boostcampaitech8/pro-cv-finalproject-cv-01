@@ -4,6 +4,7 @@ var sass = require('gulp-sass')(require('sass'));
 var autoprefixer = require('gulp-autoprefixer');
 var sourcemaps = require('gulp-sourcemaps');
 var open = require('gulp-open');
+var clean = require('gulp-clean');
 var browserSync = require('browser-sync').create();
 
 var Paths = {
@@ -48,3 +49,18 @@ gulp.task('open', function () {
 });
 
 gulp.task('open-app', gulp.parallel('open', 'watch'));
+
+gulp.task('clean', function () {
+  return gulp.src('dist', { read: false, allowEmpty: true })
+    .pipe(clean());
+});
+
+gulp.task('build', gulp.series('clean', 'compile-scss', function () {
+  return gulp.src([
+    '*.html',
+    'assets/**/*',
+    'examples/**/*',
+    'docs/**/*'
+  ], { base: './' })
+    .pipe(gulp.dest('dist'));
+}));
