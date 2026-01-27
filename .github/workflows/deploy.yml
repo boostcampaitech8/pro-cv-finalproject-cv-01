@@ -1,22 +1,22 @@
-# 백엔드 EC2 자동 배포 워크플로우
+# EC2 자동 배포 워크플로우
 # feat/GA 브랜치에 push 시 EC2 서버에 자동 배포
-name: Deploy Backend to EC2
+name: Deploy to EC2
 
 on:
   push:
     branches:
       - feat/GA  # 테스트 후 main 또는 dev로 변경
-    paths:
-      - 'serving/api/**'  # 백엔드 코드 변경 시 실행
-      - '.github/workflows/**'  # 워크플로우 변경 시에도 실행
   workflow_dispatch:  # 수동 실행 가능
 
 jobs:
-  deploy:
+  # 백엔드 배포
+  deploy-backend:
     runs-on: ubuntu-latest
+    # 백엔드 코드 또는 워크플로우 변경 시 실행
+    if: contains(github.event.head_commit.modified, 'serving/api/') || contains(github.event.head_commit.added, 'serving/api/') || github.event_name == 'workflow_dispatch'
 
     steps:
-      - name: Deploy via SSH
+      - name: Deploy Backend via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -42,8 +42,43 @@ jobs:
 
             # 헬스체크
             if curl -s http://localhost:8080/stats > /dev/null; then
-              echo "✅ 배포 성공"
+              echo "✅ 백엔드 배포 성공"
             else
-              echo "❌ 헬스체크 실패"
+              echo "❌ 백엔드 헬스체크 실패"
+              exit 1
+            fi
+
+  # 프론트엔드 배포
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    # 프론트엔드 코드 또는 워크플로우 변경 시 실행
+    if: contains(github.event.head_commit.modified, 'dashboard/') || contains(github.event.head_commit.added, 'dashboard/') || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Deploy Frontend via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # 최신 코드 가져오기
+            cd ~/pro-cv-finalproject-cv-01
+            git fetch origin
+            git checkout dev
+            git pull origin dev
+
+            # 프론트엔드 의존성 설치
+            cd dashboard
+            npm install
+
+            # nginx 설정 리로드 (필요시)
+            sudo systemctl reload nginx
+
+            # 헬스체크
+            if curl -s http://localhost/ > /dev/null; then
+              echo "✅ 프론트엔드 배포 성공"
+            else
+              echo "❌ 프론트엔드 헬스체크 실패"
               exit 1
             fi
