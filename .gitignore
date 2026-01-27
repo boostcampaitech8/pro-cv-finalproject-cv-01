@@ -44,3 +44,8 @@ htmlcov/
 training/PCB_DATASET/
 training/runs/
 *.pt
+
+# RTSP 관련 
+serving/rtsp/mediamtx
+serving/rtsp/*.mp4
+serving/rtsp/images/
