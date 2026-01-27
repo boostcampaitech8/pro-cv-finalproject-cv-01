@@ -1,0 +1,63 @@
+# EC2 자동 배포 워크플로우
+# feat/GA 브랜치에 push 시 EC2 서버에 자동 배포
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - feat/GA  # 테스트 후 main 또는 dev로 변경
+    paths:
+      - 'serving/api/**'
+      - 'dashboard/**'
+      - '.github/workflows/**'
+  workflow_dispatch:  # 수동 실행 가능
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # PATH 설정
+            export PATH="$HOME/.local/bin:$PATH"
+
+            # 최신 코드 가져오기
+            cd ~/pro-cv-finalproject-cv-01
+            git fetch origin
+            git checkout dev
+            git pull origin dev
+
+            # 백엔드 배포
+            cd serving/api
+            uv sync
+            sudo systemctl restart fastapi
+            sleep 3
+
+            # 프론트엔드 배포
+            cd ~/pro-cv-finalproject-cv-01/dashboard
+            npm install
+            sudo systemctl reload nginx
+
+            # 헬스체크
+            echo "=== 헬스체크 ==="
+            if curl -s http://localhost:8080/stats > /dev/null; then
+              echo "✅ 백엔드 OK"
+            else
+              echo "❌ 백엔드 실패"
+              exit 1
+            fi
+
+            if curl -s http://localhost/ > /dev/null; then
+              echo "✅ 프론트엔드 OK"
+            else
+              echo "❌ 프론트엔드 실패"
+              exit 1
+            fi
+
+            echo "✅ 배포 완료!"

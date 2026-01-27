@@ -1,0 +1,24 @@
+{
+  "name": "paper-dashboard-2",
+  "description": "Bootstrap 4 Paper Design",
+  "version": "2.0.1",
+  "homepage": "http://creative-tim.com/product/paper-dashboard-2",
+  "author": "Creative Tim",
+  "license": "Creative Tim License <www.creative-tim.com/license>",
+  "scripts": {
+    "start": "gulp serve",
+    "build": "gulp build"
+  },
+  "devDependencies": {
+    "browser-sync": "^3.0.4",
+    "gulp": "^4.0.2",
+    "gulp-autoprefixer": "^6.1.0",
+    "gulp-clean": "^0.4.0",
+    "gulp-install": "^1.1.0",
+    "gulp-open": "^3.0.1",
+    "gulp-sass": "^5.1.0",
+    "gulp-sourcemaps": "^2.6.5",
+    "http-proxy-middleware": "^3.0.5",
+    "sass": "^1.97.2"
+  }
+}

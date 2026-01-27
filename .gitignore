@@ -45,6 +45,10 @@ training/PCB_DATASET/
 training/runs/
 *.pt
 
+# Node.js (Frontend)
+node_modules/
+dashboard/dist/
+
 # RTSP 관련 
 serving/rtsp/mediamtx
 serving/rtsp/*.mp4

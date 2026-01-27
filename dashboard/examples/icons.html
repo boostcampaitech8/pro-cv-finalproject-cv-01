@@ -1,0 +1,525 @@
+<!--
+=========================================================
+* Paper Dashboard 2 - v2.0.1
+=========================================================
+
+* Product Page: https://www.creative-tim.com/product/paper-dashboard-2
+* Copyright 2020 Creative Tim (https://www.creative-tim.com)
+
+Coded by www.creative-tim.com
+
+ =========================================================
+
+* The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <link rel="apple-touch-icon" sizes="76x76" href="../assets/img/apple-icon.png">
+  <link rel="icon" type="image/png" href="../assets/img/favicon.png">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+  <title>
+    PCB Dashboard
+  </title>
+  <meta content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, shrink-to-fit=no'
+    name='viewport' />
+  <!--     Fonts and icons     -->
+  <link href="https://fonts.googleapis.com/css?family=Montserrat:400,700,200" rel="stylesheet" />
+  <link href="https://maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css" rel="stylesheet">
+  <!-- CSS Files -->
+  <link href="../assets/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="../assets/css/paper-dashboard.css?v=2.0.1" rel="stylesheet" />
+  <!-- CSS Just for demo purpose, don't include it in your project -->
+  <link href="../assets/demo/demo.css" rel="stylesheet" />
+</head>
+
+<body class="">
+  <div class="wrapper ">
+    <div class="sidebar" data-color="white" data-active-color="danger">
+      <div class="logo">
+        <a href="javascript:;" class="simple-text logo-mini">
+          <div class="logo-image-small">
+            <img src="../assets/img/logo-small.png">
+          </div>
+        </a>
+        <a href="javascript:;" class="simple-text logo-normal">
+          Merby
+        </a>
+      </div>
+      <div class="sidebar-wrapper">
+        <ul class="nav">
+          <li>
+            <a href="./dashboard.html">
+              <i class="nc-icon nc-layout-11"></i>
+              <p>Dashboard</p>
+            </a>
+          </li>
+          <li class="active ">
+            <a href="./icons.html">
+              <i class="nc-icon nc-zoom-split"></i>
+              <p>Defect Logs</p>
+            </a>
+          </li>
+          <li>
+            <a href="./tables.html">
+              <i class="nc-icon nc-tile-56"></i>
+              <p>Table List</p>
+            </a>
+          </li>
+          <!-- Upgrade to PRO removed -->
+        </ul>
+      </div>
+    </div>
+    <div class="main-panel">
+      <!-- Navbar -->
+      <nav class="navbar navbar-expand-lg navbar-absolute fixed-top navbar-transparent">
+        <div class="container-fluid">
+          <div class="navbar-wrapper">
+            <div class="navbar-toggle">
+              <button type="button" class="navbar-toggler">
+                <span class="navbar-toggler-bar bar1"></span>
+                <span class="navbar-toggler-bar bar2"></span>
+                <span class="navbar-toggler-bar bar3"></span>
+              </button>
+            </div>
+            <a class="navbar-brand" href="javascript:;">PCB dashboard</a>
+          </div>
+          <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navigation"
+            aria-controls="navigation-index" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-bar navbar-kebab"></span>
+            <span class="navbar-toggler-bar navbar-kebab"></span>
+            <span class="navbar-toggler-bar navbar-kebab"></span>
+          </button>
+          <div class="collapse navbar-collapse justify-content-end" id="navigation">
+
+          </div>
+        </div>
+      </nav>
+      <!-- End Navbar -->
+      <div class="content">
+        <div class="row">
+          <div class="col-md-8" style="flex: 0 0 70%; max-width: 70%;">
+            <div class="card h-100">
+              <div class="card-header">
+                <h5 class="card-title">Defect Image Viewer</h5>
+              </div>
+              <div class="card-body">
+                <div class="image-container"
+                  style="position: relative; width: 100%; height: 600px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 12px; padding: 10px;">
+                  <img id="main-image" src="../assets/img/logo-small.png" alt="Select a defect log to view image"
+                    style="display: block;">
+                  <div id="bbox-container"
+                    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
+                </div>
+                <div class="mt-3 d-flex justify-content-between align-items-center">
+                  <div>
+                    <h6 id="image-details-title">Select a log entry to see details</h6>
+                    <p id="image-details-desc">-</p>
+                  </div>
+                  <div class="custom-control custom-switch">
+                    <input type="checkbox" class="custom-control-input" id="bboxToggle">
+                    <label class="custom-control-label" for="bboxToggle">Show BBox</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4" style="flex: 0 0 30%; max-width: 30%;">
+            <div class="card h-100">
+              <div class="card-header">
+                <h5 class="card-title">Recent Defects Log </h5>
+              </div>
+              <div class="card-body d-flex flex-column">
+                <div class="table-full-width table-responsive flex-grow-1" style="overflow-y: auto; height: 660px;">
+                  <table class="table">
+                    <thead class=" text-primary">
+                      <th>Time</th>
+                      <th>Type</th>
+                      <th>Image ID</th>
+                    </thead>
+                    <tbody id="defect-log-table-body">
+                      <!-- Rows will be populated by JS -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <!--   Core JS Files   -->
+  <script src="../assets/js/core/jquery.min.js"></script>
+  <script src="../assets/js/core/popper.min.js"></script>
+  <script src="../assets/js/core/bootstrap.min.js"></script>
+  <script src="../assets/js/plugins/perfect-scrollbar.jquery.min.js"></script>
+  <!--  Google Maps Plugin    -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_KEY_HERE"></script>
+  <!-- Chart JS -->
+  <script src="../assets/js/plugins/chartjs.min.js"></script>
+  <!--  Notifications Plugin    -->
+  <script src="../assets/js/plugins/bootstrap-notify.js"></script>
+  <!-- Control Center for Now Ui Dashboard: parallax effects, scripts for the example pages etc -->
+  <script src="../assets/js/paper-dashboard.min.js?v=2.0.1" type="text/javascript"></script>
+  <!-- Paper Dashboard DEMO methods, don't include it in your project! -->
+  <script src="../assets/demo/demo.js"></script>
+  <script>
+    $(document).ready(function () {
+      // Dummy Data for Defect Logs (Mocking API Response)
+      // Dummy Data for Defect Logs (Mocking API Response)
+      // Updated to support multiple defects per image
+      const defectLogs = []; // Cleared for API usage
+      let currentDefects = []; // Store currently selected defects for redraw on resize/load
+
+      const tableBody = $('#defect-log-table-body');
+      const mainImage = $('#main-image');
+      const detailsTitle = $('#image-details-title');
+      const detailsDesc = $('#image-details-desc');
+
+      // Color mapping for defect types
+      const colorMap = {
+        'Missing Hole': 'red',
+        'Mouse Bite': 'orange',
+        'Open Circuit': 'blue',
+        'Short': 'purple',
+        'Spur': 'green',
+        'Spurious Copper': 'brown'
+      };
+
+      // Populate Table Function
+      function renderTable() {
+        tableBody.empty();
+        defectLogs.forEach(log => {
+          // Count occurrences of each defect type
+          const typeCounts = log.defects.reduce((acc, d) => {
+            acc[d.type] = (acc[d.type] || 0) + 1;
+            return acc;
+          }, {});
+
+          // Format string: "Type (Count)" or just "Type"
+          let typesArr = Object.entries(typeCounts).map(([type, count]) => {
+            return count > 1 ? `${type} (${count})` : type;
+          });
+
+          let types = typesArr.join(', ');
+          let typeClass = 'text-danger';
+
+          if (log.defects.length === 0) {
+            types = "Normal";
+            typeClass = "text-success";
+          }
+
+          const row = `
+              <tr class="defect-row" style="cursor: pointer;" data-id="${log.uid}">
+                <td>${log.time}</td>
+                <td class="${typeClass}">${types}</td>
+                <td class="text-primary">${log.id}</td>
+              </tr>
+            `;
+          tableBody.append(row);
+        });
+      }
+
+      // Initial Render
+      renderTable();
+
+      // Simulation / API Polling Logic
+      // Updated to AWS Server
+      const API_BASE_URL = "/api";
+
+      // Start polling automatically
+      fetchLogs();
+      setInterval(fetchLogs, 2000);
+
+      async function fetchLogs() {
+        try {
+          const response = await fetch(`${API_BASE_URL}/latest?limit=50`);
+          if (!response.ok) throw new Error('API Network response was not ok');
+
+          const data = await response.json();
+          if (!data) return;
+
+          // Group by image_id
+          const groupedMap = new Map();
+
+          data.forEach(record => {
+            if (!groupedMap.has(record.image_id)) {
+              // Format Time
+              const dateObj = new Date(record.timestamp);
+              const timeStr = dateObj.toTimeString().split(' ')[0];
+
+              // Construct Image URL
+              let imageUrl = '../assets/img/logo-small.png';
+              if (record.image_path) {
+                imageUrl = `${API_BASE_URL}/${record.image_path.replace(/\\/g, '/')}`;
+              }
+
+              groupedMap.set(record.image_id, {
+                uid: record.image_id, // Use image_id as unique key for grouping
+                id: record.image_id,
+                time: timeStr,
+                confidence: record.confidence, // Base confidence (could be avg or max)
+                image: imageUrl,
+                defects: []
+              });
+            } else {
+              // Existing group: Check if we can update the image if it's currently a placeholder
+              const existing = groupedMap.get(record.image_id);
+              if (record.image_path && existing.image.includes('logo-small.png')) {
+                existing.image = `${API_BASE_URL}/${record.image_path.replace(/\\/g, '/')}`;
+              }
+            }
+
+            // Map Defects from 'detections' array
+            if (record.detections && record.detections.length > 0) {
+              // Update confidence to the max confidence of detections
+              const maxConf = Math.max(...record.detections.map(d => d.confidence));
+              groupedMap.get(record.image_id).confidence = maxConf;
+
+              record.detections.forEach(det => {
+                let bbox = [0, 0, 0, 0];
+                if (det.bbox && det.bbox.length === 4) {
+                  const [x1, y1, x2, y2] = det.bbox;
+                  bbox = [x1, y1, x2 - x1, y2 - y1]; // Convert to [x, y, w, h]
+                }
+
+                groupedMap.get(record.image_id).defects.push({
+                  type: det.defect_type || 'Unknown',
+                  bbox: bbox
+                });
+              });
+            } else if (record.result === 'defect') {
+              // Fallback for legacy or malformed data where result is defect but detections empty
+              // Check if flat fields exist (legacy support)
+              if (record.defect_type) {
+                let bbox = [0, 0, 0, 0];
+                if (record.bbox && record.bbox.length === 4) {
+                  const [x1, y1, x2, y2] = record.bbox;
+                  bbox = [x1, y1, x2 - x1, y2 - y1];
+                }
+                groupedMap.get(record.image_id).defects.push({
+                  type: record.defect_type,
+                  bbox: bbox
+                });
+                groupedMap.get(record.image_id).confidence = record.confidence || 0;
+              }
+            }
+          });
+
+          // Convert Map to Array
+          const mappedLogs = Array.from(groupedMap.values());
+
+          if (mappedLogs.length > 0) {
+            // Save currently selected ID (UID)
+            const activeRow = $('.table-active');
+            const currentSelectedUid = activeRow.length > 0 ? activeRow.data('id') : null;
+
+            // Update global array
+            defectLogs.length = 0;
+            mappedLogs.forEach(l => defectLogs.push(l));
+
+            renderTable();
+
+            // Restore selection
+            let restored = false;
+            if (currentSelectedUid) {
+              // Use quotes for selector in case of special chars
+              const newRow = $(`.defect-row[data-id='${currentSelectedUid}']`);
+              if (newRow.length > 0) {
+                newRow.addClass('table-active');
+                restored = true;
+              }
+            }
+
+            // If nothing restored (was null or ID gone), select first
+            if (!restored && $('.table-active').length === 0) {
+              $('.defect-row').first().click();
+            }
+          }
+
+        } catch (error) {
+          console.error("Failed to fetch logs:", error);
+        }
+      }
+
+      function generateRandomLog() {
+        // Deprecated, kept empty or removed.
+      }
+
+      // Image Load Handler for Smart Resizing
+      mainImage.on('load', function () {
+        const img = this;
+        const container = $(this).parent();
+        const containerW = container.width(); // Inner width (minus padding)
+        const containerH = container.height(); // Inner height (minus padding)
+
+        // Reset styles to calculate natural size correctly if needed, 
+        // but naturalWidth/Height are independent of CSS.
+        // However, we need to set width/height CSS based on aspect ratio comparison.
+
+        const imgAR = img.naturalWidth / img.naturalHeight;
+        const containerAR = containerW / containerH;
+
+        if (imgAR > containerAR) {
+          // Image is wider than container: Fit to Width
+          $(img).css({ 'width': '100%', 'height': 'auto' });
+        } else {
+          // Image is taller than container: Fit to Height
+          $(img).css({ 'width': 'auto', 'height': '100%' });
+        }
+
+        // Now draw BBoxes with new dimensions
+        updateBBox(currentDefects);
+      });
+
+      // Click Event Handler
+      $(document).on('click', '.defect-row', function () {
+        // Highlight selected row
+        $('.defect-row').removeClass('table-active'); // Remove formatting from others
+        $(this).addClass('table-active'); // Bootstrap class for highlighting
+
+        const uid = $(this).data('id');
+        const selectedLog = defectLogs.find(log => log.uid == uid); // Loose equality for string/number match
+
+        if (selectedLog) {
+          // Store defects globally for the load handler
+          currentDefects = selectedLog.defects;
+
+          // Update Image - This triggers the 'load' event
+          mainImage.attr('src', selectedLog.image);
+
+          // Update Details - Use Counting Logic
+          const typeCounts = selectedLog.defects.reduce((acc, d) => {
+            acc[d.type] = (acc[d.type] || 0) + 1;
+            return acc;
+          }, {});
+
+          const typesArr = Object.entries(typeCounts).map(([type, count]) => {
+            return count > 1 ? `${type} (${count})` : type;
+          });
+          const types = typesArr.join(', ');
+
+          detailsTitle.text(`${selectedLog.id} - ${types}`);
+          detailsDesc.html(`
+            <strong>Time:</strong> ${selectedLog.time}<br>
+            <strong>Confidence:</strong> ${(selectedLog.confidence * 100).toFixed(1)}%<br>
+            <strong>Defect Count:</strong> ${selectedLog.defects.length}
+          `);
+
+          // Note: updateBBox is NOT called here directly, it's called on image load
+          // But if src is same, load might not fire?
+          // If src is same, we might want to force update.
+          if (mainImage.attr('src') === selectedLog.image && mainImage[0].complete) {
+            // If image is already loaded and src matches (re-click), manually trigger load or just call update
+            // mainImage.trigger('load'); // Safe option
+          }
+        }
+      });
+
+      // Dynamic Color Generation
+      function getColor(type) {
+        if (!type) return 'red';
+
+        // Predefined colors for known PCB types
+        const knownColors = {
+          'Missing Hole': '#e6194b',
+          'Mouse Bite': '#3cb44b',
+          'Open Circuit': '#ffe119',
+          'Short': '#4363d8',
+          'Spur': '#f58231',
+          'Spurious Copper': '#911eb4',
+          'scratch': '#e6194b',
+          'dent': '#3cb44b',
+          'hole': '#ffe119'
+        };
+
+        if (knownColors[type]) return knownColors[type];
+
+        // Hash function for unknown types (e.g. 'person', 'bus')
+        let hash = 0;
+        for (let i = 0; i < type.length; i++) {
+          hash = type.charCodeAt(i) + ((hash << 5) - hash);
+        }
+
+        const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
+        return '#' + "00000".substring(0, 6 - c.length) + c;
+      }
+
+      // BBox Update Function
+      function updateBBox(defects) {
+        const container = $('#bbox-container');
+        container.empty(); // Clear existing bboxes
+
+        const img = document.getElementById('main-image');
+        if (!img || !img.naturalWidth) return; // Wait for image to load
+
+        // Calculate Scale Factor
+        // img.width is the current displayed width
+        // img.naturalWidth is the original width
+        const scaleX = img.width / img.naturalWidth;
+        const scaleY = img.height / img.naturalHeight;
+
+        // Offset within the container
+        const offsetLeft = img.offsetLeft;
+        const offsetTop = img.offsetTop;
+
+        if ($('#bboxToggle').is(':checked') && defects && defects.length > 0) {
+          defects.forEach(defect => {
+            const bbox = defect.bbox; // [x, y, w, h] roughly from original coords
+            const color = getColor(defect.type);
+
+            // Apply scaling and offset
+            const finalX = offsetLeft + (bbox[0] * scaleX);
+            const finalY = offsetTop + (bbox[1] * scaleY);
+            const finalW = bbox[2] * scaleX;
+            const finalH = bbox[3] * scaleY;
+
+            const boxDiv = $('<div></div>').css({
+              'position': 'absolute',
+              'left': finalX + 'px',
+              'top': finalY + 'px',
+              'width': finalW + 'px',
+              'height': finalH + 'px',
+              'border': `2px solid ${color}`,
+              'pointer-events': 'none'
+            });
+
+            const label = $('<span></span>').text(defect.type).css({
+              'position': 'absolute',
+              'top': '-20px',
+              'left': '-2px',
+              'background-color': color,
+              'color': 'white',
+              'font-size': '10px',
+              'padding': '2px 4px',
+              'white-space': 'nowrap',
+              'z-index': 10
+            });
+
+            boxDiv.append(label);
+            container.append(boxDiv);
+          });
+        }
+      }
+
+      // Toggle Event
+      $('#bboxToggle').change(function () {
+        const activeRow = $('.table-active');
+        if (activeRow.length > 0) {
+          const uid = activeRow.data('id');
+          const selectedLog = defectLogs.find(log => log.uid == uid);
+          if (selectedLog) updateBBox(selectedLog.defects);
+        }
+      });
+
+      // Select first item by default
+      $('.defect-row').first().click();
+    });
+  </script>
+</body>
+
+</html>
