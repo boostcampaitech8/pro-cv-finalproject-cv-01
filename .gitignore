@@ -47,6 +47,5 @@ training/runs/
 
 # RTSP 관련 
 serving/rtsp/mediamtx
-serving/rtsp/mediamtx.yml
 serving/rtsp/*.mp4
 serving/rtsp/images/
