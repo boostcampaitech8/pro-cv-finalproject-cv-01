@@ -44,3 +44,9 @@ htmlcov/
 training/PCB_DATASET/
 training/runs/
 *.pt
+
+# Tracking
+mlruns/
+wandb/
+.python-version
+mlflow.db
