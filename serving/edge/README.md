@@ -8,7 +8,7 @@
 | RTSP 수신 | ✅ 완료 | TCP 모드, 재시도 로직 |
 | 배경 캡처 | ✅ 완료 | 스트립 타일링 방식 |
 | PCB 크롭 | ✅ 완료 | 경계 체크, 크기 검증 |
-| 추론 워커 | ⏳ 예정 | crop_queue 연동 필요 |
+| 추론 워커 | ✅ 완료 | TensorRT (FP16) 최적화, 백엔드 전송 |
 
 ## 모듈 개요
 
@@ -36,15 +36,16 @@ PCB 결함 탐지 시스템의 **엣지(Jetson) 전처리 파이프라인**.
 ## 프로젝트 구조
 
 ```
-serving/edge/
-├── main.py               # 메인 루프 (통합)
+├── main.py               # 메인 루프 (통합 및 실행 순서 관리)
 ├── preprocessor.py       # 전처리 파이프라인 클래스
+├── inference_worker.py   # 추론 및 결과 전송 워커
 ├── rtsp_receiver.py      # RTSP 수신 스레드
 ├── capture_background.py # 배경 이미지 캡처 도구
 ├── background.png        # 생성된 배경 이미지
+├── best.pt               # YOLOv8 모델 (Push/Pull 필요)
 ├── pyproject.toml
 ├── uv.lock
-└── CLAUDE.md             # 이 파일
+└── README.md             # 이 파일
 ```
 
 ## 개발 환경 설정
@@ -87,6 +88,16 @@ uv run python main.py
 
 **주요 메서드:**
 - `process_frame(frame)`: 프레임 처리 후 크롭된 PCB 반환 (없으면 None)
+
+### InferenceWorker
+
+PCB 결함 탐지 및 결과 전송을 담당하는 스레드.
+
+**특징:**
+- **TensorRT 최적화**: `.pt` 모델을 Jetson 전용 `.engine`으로 자동 변환 (FP16 적용)
+- **비동기 처리**: `crop_queue`에서 이미지를 가져와 메인 루프와 별개로 추론 수행
+- **Base64 전송**: 탐지 결과와 이미지를 Base64로 인코딩하여 백엔드 API 서버로 전송
+- **리소스 관리**: 엔진 빌드 시 높은 점유율을 고려하여 RTSP 수신보다 먼저 초기화됨
 
 ### RTSPReceiver
 
@@ -245,6 +256,17 @@ uv run python main.py --debug --max-crops 5
 1. 크기 검증 범위 확인 (w: 700-1600, h: 750-780, ratio: 0.8-2.0)
 2. 디버그 로그 추가해서 bbox 좌표 확인
 3. 배경 빼기 임계값 조정 (현재 25)
+
+### 엔진 빌드 중 멈춤/지연
+
+1. **원인**: TensorRT 엔진(.engine) 생성은 CPU/GPU를 풀가동하며 10~20분 소요됨
+2. **해결**: 첫 실행 시 로그가 멈춘 것처럼 보여도 완료될 때까지 대기
+3. **최적화**: 현재 FP16(`half=True`) 옵션이 적용되어 있어 빌드 후 성능 극대화
+
+### 엔진 빌드 중 RTSP 에러 (Bad CSeq 등)
+
+1. **원인**: 엔진 빌드 시 리소스 부족으로 네트워크 패킷 처리가 늦어짐
+2. **해결**: `main.py` 수정으로 엔진 초기화를 먼저 수행하도록 개선됨
 
 ## 코드 컨벤션
 
