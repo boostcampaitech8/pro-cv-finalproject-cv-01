@@ -1,8 +1,20 @@
 import aiosqlite
 import json
 from typing import List, Dict, Optional
-from schemas.schemas import DetectRequest, StatsResponse, InspectionLogResponse
-from config.settings import DB_PATH
+from datetime import datetime
+from schemas.schemas import (
+    DetectRequest,
+    StatsResponse,
+    InspectionLogResponse,
+    HealthResponse,
+    SessionInfo,
+    DefectConfidenceStats,
+    ConfidenceDistribution,
+    DefectTypeStat,
+    AlertInfo
+)
+from config.settings import DB_PATH, ALERT_THRESHOLDS
+from fastapi import HTTPException
 
 
 async def init_db():
@@ -324,3 +336,373 @@ async def get_session(session_id: int) -> Optional[Dict]:
         if row:
             return dict(row)
         return None
+
+
+# ===== Health Monitoring 관련 함수 =====
+
+async def resolve_session_filter(session_id: Optional[str]) -> Optional[int]:
+    """
+    세션 필터를 처리하여 실제 세션 ID를 반환.
+    - None → None (전체 데이터)
+    - "latest" → 진행 중인 세션 ID
+    - 숫자 문자열 → 검증 후 int 반환
+    """
+    if session_id is None:
+        return None
+
+    if session_id == "latest":
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                "SELECT id FROM sessions WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1"
+            )
+            row = await cursor.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="진행 중인 세션이 없습니다")
+            return row["id"]
+
+    # 숫자 문자열 변환 및 검증
+    try:
+        sid = int(session_id)
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute("SELECT id FROM sessions WHERE id = ?", (sid,))
+            row = await cursor.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail=f"세션 ID {sid}를 찾을 수 없습니다")
+            return sid
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"잘못된 session_id 형식: {session_id}")
+
+
+async def get_confidence_distribution(session_id: Optional[int]) -> ConfidenceDistribution:
+    """
+    결함의 신뢰도 분포를 계산.
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+
+        query = "SELECT detections FROM inspection_logs WHERE result='defect'"
+        params = ()
+        if session_id is not None:
+            query += " AND session_id=?"
+            params = (session_id,)
+
+        cursor = await db.execute(query, params)
+        rows = await cursor.fetchall()
+
+        high = medium = low = very_low = 0
+
+        for row in rows:
+            if row["detections"]:
+                try:
+                    detections = json.loads(row["detections"])
+                    for det in detections:
+                        conf = det.get("confidence", 0)
+                        if conf >= 0.9:
+                            high += 1
+                        elif conf >= 0.8:
+                            medium += 1
+                        elif conf >= 0.7:
+                            low += 1
+                        else:
+                            very_low += 1
+                except:
+                    pass
+
+        return ConfidenceDistribution(high=high, medium=medium, low=low, very_low=very_low)
+
+
+async def get_defect_confidence_stats(session_id: Optional[int]) -> Optional[DefectConfidenceStats]:
+    """
+    결함 신뢰도 통계 계산 (평균, 최소, 최대, 분포).
+    결함이 없으면 None 반환.
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+
+        query = "SELECT detections FROM inspection_logs WHERE result='defect'"
+        params = ()
+        if session_id is not None:
+            query += " AND session_id=?"
+            params = (session_id,)
+
+        cursor = await db.execute(query, params)
+        rows = await cursor.fetchall()
+
+        confidences = []
+
+        for row in rows:
+            if row["detections"]:
+                try:
+                    detections = json.loads(row["detections"])
+                    for det in detections:
+                        conf = det.get("confidence", 0)
+                        if conf > 0:
+                            confidences.append(conf)
+                except:
+                    pass
+
+        if not confidences:
+            return None
+
+        distribution = await get_confidence_distribution(session_id)
+
+        return DefectConfidenceStats(
+            avg_confidence=round(sum(confidences) / len(confidences), 3),
+            min_confidence=round(min(confidences), 3),
+            max_confidence=round(max(confidences), 3),
+            distribution=distribution
+        )
+
+
+async def get_defect_type_stats(session_id: Optional[int]) -> List[DefectTypeStat]:
+    """
+    결함 타입별 통계 (개수, 평균 신뢰도).
+    개수 내림차순 정렬.
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+
+        query = "SELECT detections FROM inspection_logs WHERE result='defect'"
+        params = ()
+        if session_id is not None:
+            query += " AND session_id=?"
+            params = (session_id,)
+
+        cursor = await db.execute(query, params)
+        rows = await cursor.fetchall()
+
+        # 타입별 집계
+        type_data = {}
+
+        for row in rows:
+            if row["detections"]:
+                try:
+                    detections = json.loads(row["detections"])
+                    for det in detections:
+                        defect_type = det.get("defect_type", "unknown")
+                        conf = det.get("confidence", 0)
+
+                        if defect_type not in type_data:
+                            type_data[defect_type] = {"count": 0, "total_conf": 0.0}
+
+                        type_data[defect_type]["count"] += 1
+                        type_data[defect_type]["total_conf"] += conf
+                except:
+                    pass
+
+        # DefectTypeStat 리스트로 변환 및 정렬
+        result = []
+        for defect_type, data in type_data.items():
+            avg_conf = data["total_conf"] / data["count"] if data["count"] > 0 else 0.0
+            result.append(DefectTypeStat(
+                defect_type=defect_type,
+                count=data["count"],
+                avg_confidence=round(avg_conf, 3)
+            ))
+
+        # 개수 내림차순 정렬
+        result.sort(key=lambda x: x.count, reverse=True)
+
+        return result
+
+
+async def get_session_info(session_id: Optional[int]) -> SessionInfo:
+    """
+    세션 정보 및 진행 시간 계산.
+    """
+    if session_id is None:
+        return SessionInfo(
+            id=None,
+            started_at=None,
+            ended_at=None,
+            duration_seconds=None,
+            is_active=False
+        )
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT * FROM sessions WHERE id = ?",
+            (session_id,)
+        )
+        row = await cursor.fetchone()
+
+        if not row:
+            raise HTTPException(status_code=404, detail=f"세션 ID {session_id}를 찾을 수 없습니다")
+
+        started_at = row["started_at"]
+        ended_at = row["ended_at"]
+        is_active = ended_at is None
+
+        # duration 계산
+        if started_at:
+            start_time = datetime.fromisoformat(started_at)
+            end_time = datetime.fromisoformat(ended_at) if ended_at else datetime.now()
+            duration_seconds = (end_time - start_time).total_seconds()
+        else:
+            duration_seconds = None
+
+        return SessionInfo(
+            id=session_id,
+            started_at=started_at,
+            ended_at=ended_at,
+            duration_seconds=round(duration_seconds, 1) if duration_seconds else None,
+            is_active=is_active
+        )
+
+
+def generate_alerts(
+    defect_rate: float,
+    avg_defects_per_item: float,
+    defect_confidence_stats: Optional[DefectConfidenceStats]
+) -> List[AlertInfo]:
+    """
+    임계값 기반 알림 생성.
+    """
+    alerts = []
+
+    # 1. 불량률 체크
+    if defect_rate >= ALERT_THRESHOLDS["defect_rate_critical"]:
+        alerts.append(AlertInfo(
+            level="critical",
+            message=f"불량률이 {defect_rate:.1f}%로 매우 높습니다",
+            value=defect_rate,
+            threshold=ALERT_THRESHOLDS["defect_rate_critical"],
+            action="생산 라인 점검 및 원인 분석 필요"
+        ))
+    elif defect_rate >= ALERT_THRESHOLDS["defect_rate_warning"]:
+        alerts.append(AlertInfo(
+            level="warning",
+            message=f"불량률이 {defect_rate:.1f}%로 높습니다",
+            value=defect_rate,
+            threshold=ALERT_THRESHOLDS["defect_rate_warning"],
+            action="품질 모니터링 강화 권장"
+        ))
+
+    # 2. 평균 신뢰도 체크 (결함이 있는 경우만)
+    if defect_confidence_stats:
+        avg_conf = defect_confidence_stats.avg_confidence
+
+        if avg_conf < ALERT_THRESHOLDS["avg_confidence_critical"]:
+            alerts.append(AlertInfo(
+                level="critical",
+                message=f"평균 신뢰도가 {avg_conf:.2f}로 매우 낮습니다",
+                value=avg_conf,
+                threshold=ALERT_THRESHOLDS["avg_confidence_critical"],
+                action="모델 재학습 또는 임계값 조정 필요"
+            ))
+        elif avg_conf < ALERT_THRESHOLDS["avg_confidence_warning"]:
+            alerts.append(AlertInfo(
+                level="warning",
+                message=f"평균 신뢰도가 {avg_conf:.2f}로 낮습니다",
+                value=avg_conf,
+                threshold=ALERT_THRESHOLDS["avg_confidence_warning"],
+                action="검출 정확도 모니터링 권장"
+            ))
+
+        # 3. 낮은 신뢰도 비율 체크
+        dist = defect_confidence_stats.distribution
+        total_detections = dist.high + dist.medium + dist.low + dist.very_low
+
+        if total_detections > 0:
+            low_ratio = ((dist.low + dist.very_low) / total_detections) * 100
+
+            if low_ratio >= ALERT_THRESHOLDS["low_confidence_ratio_critical"]:
+                alerts.append(AlertInfo(
+                    level="critical",
+                    message=f"낮은 신뢰도 비율이 {low_ratio:.1f}%로 매우 높습니다",
+                    value=low_ratio,
+                    threshold=ALERT_THRESHOLDS["low_confidence_ratio_critical"],
+                    action="모델 성능 점검 및 재학습 검토"
+                ))
+            elif low_ratio >= ALERT_THRESHOLDS["low_confidence_ratio_warning"]:
+                alerts.append(AlertInfo(
+                    level="warning",
+                    message=f"낮은 신뢰도 비율이 {low_ratio:.1f}%로 높습니다",
+                    value=low_ratio,
+                    threshold=ALERT_THRESHOLDS["low_confidence_ratio_warning"],
+                    action="신뢰도 낮은 검출 건 검토 권장"
+                ))
+
+    # 4. PCB당 평균 결함 개수 체크
+    if avg_defects_per_item >= ALERT_THRESHOLDS["avg_defects_per_item_critical"]:
+        alerts.append(AlertInfo(
+            level="critical",
+            message=f"불량 PCB당 평균 결함 개수가 {avg_defects_per_item:.1f}개로 매우 많습니다",
+            value=avg_defects_per_item,
+            threshold=ALERT_THRESHOLDS["avg_defects_per_item_critical"],
+            action="공정 품질 긴급 점검 필요"
+        ))
+    elif avg_defects_per_item >= ALERT_THRESHOLDS["avg_defects_per_item_warning"]:
+        alerts.append(AlertInfo(
+            level="warning",
+            message=f"불량 PCB당 평균 결함 개수가 {avg_defects_per_item:.1f}개로 많습니다",
+            value=avg_defects_per_item,
+            threshold=ALERT_THRESHOLDS["avg_defects_per_item_warning"],
+            action="공정 개선 검토 권장"
+        ))
+
+    return alerts
+
+
+def determine_system_status(alerts: List[AlertInfo]) -> str:
+    """
+    알림 목록에 따라 시스템 상태 결정.
+    """
+    if not alerts:
+        return "healthy"
+
+    if any(a.level == "critical" for a in alerts):
+        return "critical"
+
+    if any(a.level == "warning" for a in alerts):
+        return "warning"
+
+    return "healthy"
+
+
+async def get_health(session_id: Optional[str]) -> HealthResponse:
+    """
+    시스템 건강 상태 모니터링 통합 함수.
+    """
+    # 세션 필터 처리
+    resolved_session_id = await resolve_session_filter(session_id)
+
+    # 세션 정보 조회
+    session_info = await get_session_info(resolved_session_id)
+
+    # 기본 통계 조회
+    stats = await get_stats(resolved_session_id)
+
+    # 결함 신뢰도 통계
+    defect_confidence_stats = await get_defect_confidence_stats(resolved_session_id)
+
+    # 결함 타입별 통계
+    defect_type_stats = await get_defect_type_stats(resolved_session_id)
+
+    # 알림 생성
+    alerts = generate_alerts(
+        defect_rate=stats.defect_rate,
+        avg_defects_per_item=stats.avg_defects_per_item,
+        defect_confidence_stats=defect_confidence_stats
+    )
+
+    # 시스템 상태 결정
+    status = determine_system_status(alerts)
+
+    return HealthResponse(
+        status=status,
+        timestamp=datetime.now().isoformat(),
+        session_info=session_info,
+        total_inspections=stats.total_inspections,
+        normal_count=stats.normal_count,
+        defect_count=stats.defect_items,
+        defect_rate=stats.defect_rate,
+        total_defects=stats.total_defects,
+        avg_defects_per_item=stats.avg_defects_per_item,
+        defect_confidence_stats=defect_confidence_stats,
+        defect_type_stats=defect_type_stats,
+        alerts=alerts
+    )
