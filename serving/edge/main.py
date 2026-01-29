@@ -13,6 +13,7 @@ import time
 from datetime import datetime
 
 import cv2
+import requests
 
 # 상위 디렉토리의 rtsp 모듈 import를 위한 경로 추가
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'rtsp'))
@@ -25,10 +26,48 @@ from inference_worker import InferenceWorker
 # 기본 설정
 DEFAULT_RTSP_URL = "rtsp://3.36.185.146:8554/pcb_stream"
 DEFAULT_API_URL = "http://3.35.182.98:8080/detect/"
+DEFAULT_SESSION_URL = "http://3.35.182.98:8080/sessions/"
 DEFAULT_MODEL_PATH = os.path.join(os.path.dirname(__file__), "best.pt")
 BACKGROUND_PATH = os.path.join(os.path.dirname(__file__), "background.png")
 FRAME_QUEUE_SIZE = 2
 CROP_QUEUE_SIZE = 10
+
+
+def start_session(session_url: str) -> int:
+    """
+    백엔드에 세션 시작을 요청하고 세션 ID를 반환.
+    실패 시 None 반환.
+    """
+    try:
+        response = requests.post(session_url, timeout=5.0)
+        if response.status_code == 201:
+            data = response.json()
+            session_id = data.get("id")
+            print(f"[Main] 세션 시작: ID={session_id}")
+            return session_id
+        else:
+            print(f"[Main] 세션 시작 실패: HTTP {response.status_code}")
+            return None
+    except requests.exceptions.RequestException as e:
+        print(f"[Main] 세션 시작 요청 실패: {e}")
+        return None
+
+
+def end_session(session_url: str, session_id: int):
+    """
+    백엔드에 세션 종료를 요청.
+    """
+    if session_id is None:
+        return
+
+    try:
+        response = requests.patch(f"{session_url}{session_id}", timeout=5.0)
+        if response.status_code == 200:
+            print(f"[Main] 세션 종료: ID={session_id}")
+        else:
+            print(f"[Main] 세션 종료 실패: HTTP {response.status_code}")
+    except requests.exceptions.RequestException as e:
+        print(f"[Main] 세션 종료 요청 실패: {e}")
 
 
 def generate_background_if_needed():
@@ -95,11 +134,26 @@ def main():
         default=0,
         help="최대 크롭 개수 (0=무제한, 테스트용)"
     )
+    parser.add_argument(
+        "--session-url",
+        default=DEFAULT_SESSION_URL,
+        help=f"세션 API 주소 (기본값: {DEFAULT_SESSION_URL})"
+    )
+    parser.add_argument(
+        "--no-session",
+        action="store_true",
+        help="세션 관리 비활성화"
+    )
     args = parser.parse_args()
 
     # 배경 이미지 확인
     if not os.path.exists(BACKGROUND_PATH):
         print(f"[Main] 경고: 배경 이미지({BACKGROUND_PATH})가 없습니다. 전처리 로직이 정상 작동하지 않을 수 있습니다.")
+
+    # 세션 시작
+    session_id = None
+    if not args.no_session:
+        session_id = start_session(args.session_url)
 
     # Queue 생성
     frame_queue = queue.Queue(maxsize=FRAME_QUEUE_SIZE)
@@ -108,9 +162,12 @@ def main():
     # 1. 추론 워커 먼저 초기화 (모델 로드 및 엔진 변환 수행)
     print(f"[Main] 추론 워커 초기화 중 (모델: {args.model})...")
     try:
-        inference_worker = InferenceWorker(crop_queue, args.model, args.api_url)
+        inference_worker = InferenceWorker(crop_queue, args.model, args.api_url, session_id=session_id)
     except Exception as e:
         print(f"[Main] 추론 워커 환경 설정 실패: {e}")
+        # 세션 종료 후 종료
+        if not args.no_session and session_id:
+            end_session(args.session_url, session_id)
         sys.exit(1)
 
     # 2. RTSP 수신 스레드 시작 (모델 준비 완료 후)
@@ -150,6 +207,7 @@ def main():
     print(f"  - 입력: {args.input}")
     print(f"  - API: {args.api_url}")
     print(f"  - 모델: {args.model}")
+    print(f"  - 세션 ID: {session_id if session_id else '없음'}")
 
     crop_count = 0
     frame_count = 0
@@ -202,9 +260,13 @@ def main():
         print("[Main] 리소스 정리 중...")
         receiver.stop()
         inference_worker.stop()
-        
+
         receiver.join(timeout=2.0)
         inference_worker.join(timeout=2.0)
+
+        # 세션 종료
+        if not args.no_session and session_id:
+            end_session(args.session_url, session_id)
 
         elapsed = time.time() - start_time
         fps = frame_count / elapsed if elapsed > 0 else 0
@@ -215,6 +277,7 @@ def main():
         print(f"  실행 시간: {elapsed:.1f}초")
         print(f"  평균 성능: {fps:.1f} FPS")
         print(f"  수신 상태: {receiver.get_stats()}")
+        print(f"  세션 ID: {session_id if session_id else '없음'}")
 
 
 

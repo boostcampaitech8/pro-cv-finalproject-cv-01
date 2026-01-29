@@ -12,25 +12,27 @@ from ultralytics import YOLO
 class InferenceWorker(threading.Thread):
     """
     PCB 결함 탐지 추론 워커 스레드
-    
+
     1. 모델 로드 (PT -> Engine 자동 변환)
     2. crop_queue에서 PCB 이미지를 가져와 추론
     3. 결과를 백엔드 API로 전송
     """
 
-    def __init__(self, crop_queue: queue.Queue, model_path: str, api_url: str):
+    def __init__(self, crop_queue: queue.Queue, model_path: str, api_url: str, session_id: int = None):
         """
         Args:
             crop_queue: 전처리기로부터 크롭된 이미지를 받는 큐
             model_path: YOLO 모델 경로 (.pt 또는 .engine)
             api_url: 결과를 전송할 백엔드 API 주소
+            session_id: 세션 ID (optional)
         """
         super().__init__(daemon=True)
         self.crop_queue = crop_queue
         self.model_path = model_path
         self.api_url = api_url
+        self.session_id = session_id
         self.running = False
-        
+
         # 모델 로드 (Engine 변환 포함)
         self.model = self._load_model(model_path)
         print(f"[InferenceWorker] 모델 로드 완료: {model_path}")
@@ -105,7 +107,8 @@ class InferenceWorker(threading.Thread):
             "timestamp": datetime.now().isoformat(),
             "image_id": image_id,
             "image": img_base64,
-            "detections": detections
+            "detections": detections,
+            "session_id": self.session_id
         }
 
         # 백엔드 전송
