@@ -7,6 +7,7 @@ PCB 전처리 파이프라인
 import cv2
 import numpy as np
 from typing import Optional
+import config
 
 
 class PCBPreprocessor:
@@ -30,22 +31,6 @@ class PCBPreprocessor:
         self.state = "background"
         self.crop_done = False
 
-        # 검사 영역 (세로 띠) - 프레임 중앙 부근
-        self.ROI_X1, self.ROI_X2 = 950, 970
-        self.ROI_Y1, self.ROI_Y2 = 158, 922
-
-        # 히스테리시스 임계값 (표준편차 기준)
-        self.THRESH_LOW = 15   # 이 이하면 background로 전환
-        self.THRESH_HIGH = 25  # 이 이상이면 pcb로 전환
-
-        # 배경 빼기 임계값
-        self.BG_DIFF_THRESH = 25
-
-        # PCB 크기 범위 (영상 기준)
-        self.MIN_HEIGHT, self.MAX_HEIGHT = 750, 780
-        self.MIN_WIDTH, self.MAX_WIDTH = 700, 1600
-        self.MIN_RATIO, self.MAX_RATIO = 0.8, 2.0  # 실제 PCB 비율 ~1.9
-
     def process_frame(self, frame: np.ndarray) -> Optional[np.ndarray]:
         """
         프레임 처리 후 크롭된 PCB 반환
@@ -56,8 +41,8 @@ class PCBPreprocessor:
         Returns:
             크롭된 PCB 이미지 또는 None
         """
-        # 1. 검사 영역 추출
-        roi = frame[self.ROI_Y1:self.ROI_Y2, self.ROI_X1:self.ROI_X2]
+        # 1. 검사 영역 추출 (config 파일의 ROI 사용)
+        roi = frame[config.ROI_Y1:config.ROI_Y2, config.ROI_X1:config.ROI_X2]
 
         # 2. 표준편차 측정 (BGR - 구분력 더 높음)
         std = np.std(roi)
@@ -65,16 +50,13 @@ class PCBPreprocessor:
         # 3. 상태 판단 (히스테리시스)
         prev_state = self.state
 
-        if self.state == "background" and std > self.THRESH_HIGH:
+        if self.state == "background" and std > config.THRESH_HIGH:
             self.state = "pcb"
-        elif self.state == "pcb" and std < self.THRESH_LOW:
+        elif self.state == "pcb" and std < config.THRESH_LOW:
             self.state = "background"
             self._reset()
 
-        # 4. 트리거 판단 (background → pcb 전환 시)
-        trigger = (prev_state == "background" and self.state == "pcb")
-
-        # 5. 크롭 시도 (PCB 상태이고 아직 크롭 안 했으면)
+        # 4. 크롭 시도 (PCB 상태이고 아직 크롭 안 했으면)
         if self.state == "pcb" and not self.crop_done:
             cropped = self._try_crop(frame)
             if cropped is not None:
@@ -86,19 +68,13 @@ class PCBPreprocessor:
     def _try_crop(self, frame: np.ndarray) -> Optional[np.ndarray]:
         """
         배경 빼기로 PCB 영역을 찾고 크롭
-
-        Args:
-            frame: BGR 프레임
-
-        Returns:
-            크롭된 PCB 이미지 또는 None (크기 검증 실패 시)
         """
         # 그레이스케일 변환
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         # 배경 빼기
         diff = cv2.absdiff(gray, self.background_gray)
-        _, binary = cv2.threshold(diff, self.BG_DIFF_THRESH, 255, cv2.THRESH_BINARY)
+        _, binary = cv2.threshold(diff, config.BG_DIFF_THRESH, 255, cv2.THRESH_BINARY)
 
         # 노이즈 제거
         kernel = np.ones((5, 5), np.uint8)
@@ -134,31 +110,24 @@ class PCBPreprocessor:
             return None
 
         x, y, w, h = valid_contour
-        print(f"[Preprocessor] 크롭 성공! bbox: x={x}, w={w}, size={w}x{h}")
+        print(f"[Preprocessor] 크롭 성공! bbox: x={x}, y={y}, size={w}x{h}")
         return frame[y:y+h, x:x+w].copy()
 
     def _validate_size(self, w: int, h: int) -> bool:
         """
         PCB 크기 유효성 검증
-
-        Args:
-            w: 너비
-            h: 높이
-
-        Returns:
-            유효하면 True
         """
         # 높이 범위 확인
-        if not (self.MIN_HEIGHT <= h <= self.MAX_HEIGHT):
+        if not (config.MIN_HEIGHT <= h <= config.MAX_HEIGHT):
             return False
 
         # 너비 범위 확인
-        if not (self.MIN_WIDTH <= w <= self.MAX_WIDTH):
+        if not (config.MIN_WIDTH <= w <= config.MAX_WIDTH):
             return False
 
         # 가로세로 비율 확인
         ratio = w / h
-        if not (self.MIN_RATIO <= ratio <= self.MAX_RATIO):
+        if not (config.MIN_RATIO <= ratio <= config.MAX_RATIO):
             return False
 
         return True
