@@ -45,6 +45,12 @@ training/PCB_DATASET/
 training/runs/
 *.pt
 
+# Tracking
+mlruns/
+wandb/
+.python-version
+mlflow.db
+
 # Node.js (Frontend)
 node_modules/
 dashboard/dist/
