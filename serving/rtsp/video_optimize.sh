@@ -1,7 +1,7 @@
 # 1080p 원본을 RTSP 스트리밍에 최적화된 H.264로 변환하는 스크립트
 
-INPUT="/home/ubuntu/rtsp/30fps_dark.mp4"
-OUTPUT="/home/ubuntu/rtsp/1080p_optimized.mp4"
+INPUT="/home/ubuntu/rtsp/v2.mp4"
+OUTPUT="/home/ubuntu/rtsp/v2_optimized.mp4"
 
 echo "🪽 인코딩을 시작합니다: $INPUT -> $OUTPUT"
 
