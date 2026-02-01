@@ -45,9 +45,6 @@ def create_premium_pcb_video():
         new_w, new_h = int(w * scale), target_h
         img_res = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
         
-        # Add a subtle border/frame to PCB for premium look
-        img_res = cv2.copyMakeBorder(img_res, 4, 4, 4, 4, cv2.BORDER_CONSTANT, value=(200, 200, 200))
-        
         processed_imgs.append(img_res)
 
     # --- [4. DESIGN THE BELT] ---
