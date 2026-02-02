@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from schemas.schemas import DetectRequest, DetectResponse
 from database import db
 from utils import image_utils
 from utils.slack_notifier import send_slack_alert
+from utils.auth import verify_api_key
 from config import settings
 from datetime import datetime
 from typing import Optional
@@ -21,7 +22,7 @@ router = APIRouter(
     tags=["Detect"]
 )
 
-@router.post("/", response_model=DetectResponse, status_code=status.HTTP_200_OK)
+@router.post("/", response_model=DetectResponse, status_code=status.HTTP_200_OK, dependencies=[Depends(verify_api_key)])
 async def receive_detection_result(request: DetectRequest):
     """
     Receives detection result from Edge/Jetson.
@@ -30,8 +31,8 @@ async def receive_detection_result(request: DetectRequest):
     saved_image_path = None
 
     try:
-        # 1. Handle Image Saving (불량인 경우만)
-        if len(request.detections) > 0 and request.image:
+        # 1. Handle Image Saving (이미지가 있으면 저장)
+        if request.image:
             # Decode Base64
             try:
                 image_bytes = image_utils.decode_base64_image(request.image)

@@ -8,6 +8,10 @@ import cv2
 import numpy as np
 from datetime import datetime
 from ultralytics import YOLO
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 class InferenceWorker(threading.Thread):
     """
@@ -113,7 +117,13 @@ class InferenceWorker(threading.Thread):
 
         # 백엔드 전송
         try:
-            response = requests.post(self.api_url, json=payload, timeout=5.0)
+            # API Key 헤더 추가 (환경 변수에서 로드)
+            api_key = os.getenv("EDGE_API_KEY")
+            headers = {}
+            if api_key:
+                headers["X-API-KEY"] = api_key
+            
+            response = requests.post(self.api_url, json=payload, headers=headers, timeout=5.0)
             if response.status_code == 200 or response.status_code == 201:
                 print(f"[InferenceWorker] {image_id} 전송 성공! (탐지 개수: {len(detections)})")
             else:

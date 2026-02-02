@@ -1,5 +1,9 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Base directory (serving/api/)
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,6 +25,8 @@ API_TITLE = "PCB Defect Detection API"
 API_DESCRIPTION = "Backend for Jetson Edge AI and Streamlit Frontend"
 API_VERSION = "1.0.0"
 
+# Edge Device Authentication
+EDGE_API_KEY = os.getenv("EDGE_API_KEY", None)
 # AWS S3 Settings
 # 환경 변수에서 로드하거나, .env 파일이 없으면 아래 기본값을 사용 (보안상 환경변수 권장)
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
