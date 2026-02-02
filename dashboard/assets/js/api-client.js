@@ -1,9 +1,28 @@
+// 로컬 테스트 시: "http://localhost:8000"
+// 배포 시: "/api"
 const API_BASE_URL = "/api";
 
 const ApiClient = {
-    getStats: async () => {
+    // 세션 API
+    getSessions: async () => {
         try {
-            const response = await fetch(`${API_BASE_URL}/stats`);
+            const response = await fetch(`${API_BASE_URL}/sessions/`);
+            if (!response.ok) throw new Error("Network response was not ok");
+            return await response.json();
+        } catch (error) {
+            console.error("Error fetching sessions:", error);
+            return null;
+        }
+    },
+
+    // 통계 API (session_id 지원)
+    getStats: async (sessionId = null) => {
+        try {
+            let url = `${API_BASE_URL}/stats`;
+            if (sessionId) {
+                url += `?session_id=${sessionId}`;
+            }
+            const response = await fetch(url);
             if (!response.ok) throw new Error("Network response was not ok");
             return await response.json();
         } catch (error) {
@@ -11,9 +30,15 @@ const ApiClient = {
             return null;
         }
     },
-    getDefects: async () => {
+
+    // 결함 집계 API (session_id 지원)
+    getDefects: async (sessionId = null) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/defects`);
+            let url = `${API_BASE_URL}/defects`;
+            if (sessionId) {
+                url += `?session_id=${sessionId}`;
+            }
+            const response = await fetch(url);
             if (!response.ok) throw new Error("Network response was not ok");
             return await response.json();
         } catch (error) {
@@ -21,9 +46,15 @@ const ApiClient = {
             return null;
         }
     },
-    getLatest: async (limit = 10) => {
+
+    // 최근 로그 API (session_id 지원)
+    getLatest: async (limit = 10, sessionId = null) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/latest?limit=${limit}`);
+            let url = `${API_BASE_URL}/latest?limit=${limit}`;
+            if (sessionId) {
+                url += `&session_id=${sessionId}`;
+            }
+            const response = await fetch(url);
             if (!response.ok) throw new Error("Network response was not ok");
             return await response.json();
         } catch (error) {
@@ -35,10 +66,74 @@ const ApiClient = {
 
 const DashboardUpdater = {
     charts: {},
+    selectedSessionId: null,  // 선택된 세션 ID (null = 전체)
 
     init: function () {
         this.initCharts();
+        this.initSessionSelector();
         this.startPolling();
+    },
+
+    // 세션 선택기 초기화
+    initSessionSelector: function () {
+        const selector = document.getElementById("session-select");
+        if (!selector) return;
+
+        // 세션 변경 이벤트
+        selector.addEventListener("change", (e) => {
+            const value = e.target.value;
+            this.selectedSessionId = value ? parseInt(value) : null;
+            console.log("Session selected:", this.selectedSessionId);
+
+            // 트렌드 차트 리셋 (세션 변경 시)
+            this.trendData = Array(24).fill(null);
+            this.charts.trends.data.datasets[0].data = this.trendData;
+            this.charts.trends.update();
+
+            // 즉시 데이터 업데이트
+            this.updateData({ forceChartUpdate: true });
+        });
+
+        // 초기 세션 목록 로드
+        this.loadSessions();
+    },
+
+    // 세션 목록 로드
+    loadSessions: async function () {
+        const selector = document.getElementById("session-select");
+        if (!selector) return;
+
+        const result = await ApiClient.getSessions();
+        if (!result || !result.sessions) return;
+
+        // 기존 옵션 제거 (전체 옵션 유지)
+        while (selector.options.length > 1) {
+            selector.remove(1);
+        }
+
+        // 세션 목록 추가
+        result.sessions.forEach((session) => {
+            const option = document.createElement("option");
+            option.value = session.id;
+
+            // 시간 포맷팅
+            const startTime = this.formatDateTime(session.started_at);
+            const endTime = session.ended_at ? this.formatDateTime(session.ended_at) : "진행중";
+            option.textContent = `#${session.id} (${startTime} ~ ${endTime})`;
+
+            selector.appendChild(option);
+        });
+    },
+
+    // 날짜/시간 포맷팅
+    formatDateTime: function (isoString) {
+        if (!isoString) return "";
+        const date = new Date(isoString);
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        const hours = String(date.getHours()).padStart(2, "0");
+        const minutes = String(date.getMinutes()).padStart(2, "0");
+        return `${month}/${day} ${hours}:${minutes}`;
     },
 
     initCharts: function () {
@@ -208,11 +303,15 @@ const DashboardUpdater = {
 
     startPolling: function () {
         this.updateData();
+        // 세션 목록도 주기적으로 갱신 (5초마다)
+        setInterval(() => this.loadSessions(), 5000);
         setInterval(() => this.updateData(), 1000); // Poll every 1 second
     },
 
     updateData: async function ({ forceChartUpdate = false } = {}) {
-        const stats = await ApiClient.getStats();
+        const sessionId = this.selectedSessionId;
+
+        const stats = await ApiClient.getStats(sessionId);
         if (stats) {
             // Update Cards (Real-time)
             // Backend sends: total_inspections, normal_count, defect_items, total_defects, defect_rate
@@ -228,21 +327,21 @@ const DashboardUpdater = {
             this.updateTrendChart(stats.total_defects || 0, forceChartUpdate);
         }
 
-        const defects = await ApiClient.getDefects();
+        const defects = await ApiClient.getDefects(sessionId);
         if (defects) {
             this.updateTypesChart(defects);
         }
 
         // Always fetch latest logs as stats.recent_defects is deprecated in new API
-        const latest = await ApiClient.getLatest(10);
+        const latest = await ApiClient.getLatest(10, sessionId);
         if (latest) {
             // Filter only defects for confidence chart, or show latest if no defects found?
             // Usually we want to track confidence of actual defects.
             const defectsOnly = latest.filter(item => item.result === 'defect');
-            // If there are no recent defects, show generic latest items (which might be normal) 
+            // If there are no recent defects, show generic latest items (which might be normal)
             // or just show empty if we strictly want Defects.
             // Let's fallback to latest if defectsOnly is empty but typically we want confidence of defects.
-            // If latest has no defects, defectsOnly is empty. 
+            // If latest has no defects, defectsOnly is empty.
             this.updateConfidenceChart(defectsOnly.length > 0 ? defectsOnly : []);
         }
     },

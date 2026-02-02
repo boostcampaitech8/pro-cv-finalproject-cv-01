@@ -4,7 +4,10 @@
 sudo pm2 delete pcb-streamer || true
 
 # 2. RTSP 송출 시작
-sudo pm2 start "ffmpeg -re -stream_loop -1 -i /home/ubuntu/rtsp/PCB_Conveyor_30fps.mp4 -c copy -f rtsp rtsp://localhost:8554/pcb_stream" --name pcb-streamer --cwd /home/ubuntu/rtsp
+sudo pm2 start "ffmpeg -re -stream_loop -1 -i /home/ubuntu/rtsp/1080p_optimized.mp4 -c copy -f rtsp rtsp://localhost:8554/pcb_stream" --name pcb-streamer
+
+echo "⏳ 스트리머가 안정화될 때까지 3초간 대기합니다..."
+sleep 3
 
 # 3. 현재 pm2 프로세스 리스트 상태 확인
 sudo pm2 status

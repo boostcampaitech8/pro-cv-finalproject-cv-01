@@ -134,10 +134,11 @@ Coded by www.creative-tim.com
               <div class="card-body d-flex flex-column">
                 <div class="table-full-width table-responsive flex-grow-1" style="overflow-y: auto; height: 660px;">
                   <table class="table">
-                    <thead class=" text-primary">
-                      <th>Time</th>
-                      <th>Type</th>
-                      <th>Image ID</th>
+                    <thead class="text-primary" style="text-align: center;">
+                      <th style="width: 40px; font-size: 12px;">#</th>
+                      <th style="width: 75px; font-size: 12px;">Time</th>
+                      <th style="font-size: 12px;">Type</th>
+                      <th style="width: 80px; font-size: 12px;">Image ID</th>
                     </thead>
                     <tbody id="defect-log-table-body">
                       <!-- Rows will be populated by JS -->
@@ -213,11 +214,15 @@ Coded by www.creative-tim.com
             typeClass = "text-success";
           }
 
+          // 세션 ID 표시 (없으면 '-')
+          const sessionDisplay = log.session_id ? log.session_id : '-';
+
           const row = `
-              <tr class="defect-row" style="cursor: pointer;" data-id="${log.uid}">
+              <tr class="defect-row" style="cursor: pointer; font-size: 13px; text-align: center;" data-id="${log.uid}">
+                <td class="text-muted">${sessionDisplay}</td>
                 <td>${log.time}</td>
                 <td class="${typeClass}">${types}</td>
-                <td class="text-primary">${log.id}</td>
+                <td class="text-primary" style="font-size: 12px;">${log.id}</td>
               </tr>
             `;
           tableBody.append(row);
@@ -228,7 +233,8 @@ Coded by www.creative-tim.com
       renderTable();
 
       // Simulation / API Polling Logic
-      // Updated to AWS Server
+      // 로컬 테스트 시: "http://localhost:8000"
+      // 배포 시: "/api"
       const API_BASE_URL = "/api";
 
       // Start polling automatically
@@ -264,6 +270,7 @@ Coded by www.creative-tim.com
                 time: timeStr,
                 confidence: record.confidence, // Base confidence (could be avg or max)
                 image: imageUrl,
+                session_id: record.session_id, // 세션 ID 추가
                 defects: []
               });
             } else {

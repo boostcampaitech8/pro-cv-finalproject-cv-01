@@ -6,28 +6,35 @@ import cv2
 import numpy as np
 from datetime import datetime
 from ultralytics import YOLO
-import config
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 class InferenceWorker(threading.Thread):
     """
     PCB 결함 탐지 추론 워커 스레드
-    
+
     1. 모델 로드 (PT -> Engine 자동 변환)
     2. crop_queue에서 PCB 이미지를 가져와 추론
     3. 결과를 upload_queue로 전달
     """
 
-    def __init__(self, crop_queue: queue.Queue, upload_queue: queue.Queue):
+    def __init__(self, crop_queue: queue.Queue, model_path: str, api_url: str, session_id: int = None):
         """
         Args:
             crop_queue: 전처리기로부터 크롭된 이미지를 받는 큐
-            upload_queue: 추론 결과를 업로드 워커로 보내는 큐
+            model_path: YOLO 모델 경로 (.pt 또는 .engine)
+            api_url: 결과를 전송할 백엔드 API 주소
+            session_id: 세션 ID (optional)
         """
         super().__init__(daemon=True)
         self.crop_queue = crop_queue
-        self.upload_queue = upload_queue
+        self.model_path = model_path
+        self.api_url = api_url
+        self.session_id = session_id
         self.running = False
-        
+
         # 모델 로드 (Engine 변환 포함)
         self.model = self._load_model(config.MODEL_PATH)
         print(f"[InferenceWorker] 모델 로드 완료: {config.MODEL_PATH}")
@@ -127,5 +134,27 @@ class InferenceWorker(threading.Thread):
             "timestamp": timestamp_now.isoformat(),
             "image_id": image_id,
             "image": img_base64,
-            "detections": detections
+            "detections": detections,
+            "session_id": self.session_id
         }
+
+        # 백엔드 전송
+        try:
+            # API Key 헤더 추가 (환경 변수에서 로드)
+            api_key = os.getenv("EDGE_API_KEY")
+            headers = {}
+            if api_key:
+                headers["X-API-KEY"] = api_key
+            
+            response = requests.post(self.api_url, json=payload, headers=headers, timeout=5.0)
+            if response.status_code == 200 or response.status_code == 201:
+                print(f"[InferenceWorker] {image_id} 전송 성공! (탐지 개수: {len(detections)})")
+            else:
+                print(f"[InferenceWorker] 전송 실패: HTTP {response.status_code} - {response.text}")
+        except requests.exceptions.RequestException as e:
+            print(f"[InferenceWorker] API 서버 연결 실패: {e}")
+
+    def stop(self):
+        """워커 종료"""
+        self.running = False
+        print("[InferenceWorker] 중지 중...")

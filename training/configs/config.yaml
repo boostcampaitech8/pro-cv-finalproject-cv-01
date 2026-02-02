@@ -1,0 +1,71 @@
+# PCB Defect Detection Configuration V2
+
+# Experiment
+exp_name: "v8n_1280"
+wandb_project: "" # Leave empty to disable
+seed: 42 # Random seed for reproducibility
+
+# Dynamic Module Selection
+# Available Options: corresponds to python filename in src/datasets/
+dataset_module: "dataset"       # ['dataset', 'dataset_aug']
+# Available Options: corresponds to python filename in src/models/
+model_module: "yolov8n"          # ['yolov8n', 'yolov8s', 'yolov8m']
+
+# Model Settings
+# model_module decides which weights to load internally (e.g. pretrained_weights/yolov8s.pt).
+
+device: '0'        # Options: ['cpu', '0', '0,1', 'mps']
+workers: 8         # Number of dataloader workers
+
+# Data Config
+data_path: "./PCB_DATASET"
+names: ['missing_hole', 'mouse_bite', 'open_circuit', 'short', 'spur', 'spurious_copper']
+
+# Split Strategy
+# Stratified Split ratios
+test_size: 0.1     # 10% for Test
+val_size: 0.2      # 20% for Validation (Train=70%)
+
+# Training Control
+epochs: 200
+batch_size: 16
+img_size: 1280      # Input image size (e.g. 640)
+patience: 30       # Early stopping patience
+save: True
+save_period: -1    # Save checkpoint every N epochs (-1 disables)
+
+# Optimizer (Recommended: auto or AdamW)
+# Options: ['SGD', 'Adam', 'AdamW', 'RMSProp', 'auto']
+optimizer: 'AdamW' 
+lr0: 0.001         # Initial Learning Rate (AdamW needs lower LR than SGD's 0.01)
+
+# Other Optimizer Params (handled by default if omitted)
+momentum: 0.937    # Momentum (Standard: 0.937)
+weight_decay: 0.0005 # Weight decay (Standard: 0.0005)
+
+# Scheduler
+# Options: ['linear', 'cosine']
+scheduler_type: 'cosine' 
+lrf: 0.01          # Final LR = lr0 * lrf (Standard: 0.01 -> ends at 1e-4)
+
+# Loss Gains (YOLOv8 Defaults)
+# Loss Gains (YOLOv8 Defaults)
+box: 7.5
+cls: 0.5
+dfl: 1.5
+
+# Augmentation Control (YOLOv8 Defaults)
+# Adjust these to control data augmentation intensity.
+hsv_h: 0.015         # Image HSV-Hue augmentation (fraction) (Default: 0.015)
+hsv_s: 0.7         # Image HSV-Saturation augmentation (fraction) (Default: 0.7)
+hsv_v: 0.4         # Image HSV-Value augmentation (fraction) (Default: 0.4)
+degrees: 0.0       # Image rotation (+/- deg) (Default: 0.0)
+translate: 0.1     # Image translation (+/- fraction) (Default: 0.1)
+scale: 0.5         # Image scale (+/- gain) (Default: 0.5)
+shear: 0.0         # Image shear (+/- deg) (Default: 0.0)
+perspective: 0.0   # Image perspective (+/- fraction), range 0-0.001 (Default: 0.0)
+flipud: 0.0        # Image flip up-down (probability) (Default: 0.0)
+fliplr: 0.5        # Image flip left-right (probability) (Default: 0.5)
+mosaic: 1.0        # Image mosaic (probability) (Default: 1.0)
+mixup: 0.0         # Image mixup (probability) (Default: 0.0)
+copy_paste: 0.0    # Segment copy-paste (probability) (Default: 0.0)
