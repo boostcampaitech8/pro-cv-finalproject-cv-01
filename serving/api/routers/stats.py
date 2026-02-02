@@ -29,6 +29,7 @@ async def get_latest_logs(
     return await db.get_recent_logs(limit, session_id=session_id)
 
 
+
 @router.get("/defects", response_model=Dict[str, int])
 async def get_defect_aggregation(
     session_id: Optional[int] = Query(None, description="세션 ID (없으면 전체)")
