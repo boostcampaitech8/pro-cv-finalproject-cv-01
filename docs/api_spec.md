@@ -74,9 +74,61 @@
 - 불량 이미지(detections가 비어있지 않음)일 경우 AWS S3에 저장
 - 저장 경로: `raw/{날짜}/{timestamp}_{image_id}.jpg`
 
-**Slack 알림:**
-- `SLACK_ALERT_ENABLED=true` 설정 시 자동 트리거
-- 시스템 상태 변화(healthy ↔ warning ↔ critical) 시에만 전송
+#### Slack 알림 시스템 (내부 기능)
+
+`POST /detect/` 호출 시 자동으로 트리거되는 **내부 알림 기능**입니다. 외부에서 호출하는 API가 아니라, 백엔드에서 Slack으로 **보내는** 웹훅입니다.
+
+**동작 흐름:**
+```
+엣지 → POST /detect/ → DB 저장 → Health 상태 조회 → 상태 변화 감지 → Slack 웹훅 전송
+```
+
+**환경 변수 설정:**
+| 변수 | 설명 | 필수 |
+|------|------|------|
+| `SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL | O |
+| `SLACK_ALERT_ENABLED` | 알림 활성화 (`true`/`false`) | O |
+
+**상태 변화 감지:**
+
+세션별로 이전 상태를 메모리에 저장하고, 상태가 변화할 때만 Slack 알림을 전송합니다.
+
+| 이전 상태 | 현재 상태 | 메시지 |
+|----------|----------|--------|
+| (없음) | any | 🔔 세션 시작: 현재 상태 {status} |
+| healthy | warning | ⚠️ 경고: 시스템 상태가 warning으로 전환 |
+| healthy | critical | 🚨 긴급: 시스템 상태가 critical로 전환 |
+| warning | critical | 🚨 악화: warning에서 critical로 악화 |
+| warning | healthy | ✅ 개선: 정상 상태로 복구 |
+| critical | warning | ⚠️ 부분 개선: critical에서 warning으로 |
+| critical | healthy | ✅ 해결: 완전히 복구 |
+
+**Slack 메시지 포맷:**
+```
+🚨 긴급: 시스템 상태가 critical로 전환되었습니다
+
+• 상태: critical
+• 세션: 세션 1 (활성)
+
+🔴 Critical 알림:
+• 불량률이 25.0%로 매우 높습니다
+  → 생산 라인 점검 및 원인 분석 필요
+
+🟡 Warning 알림:
+• 평균 신뢰도가 0.83으로 낮습니다
+  → 모델 재학습 검토 필요
+```
+
+**특징:**
+- **이벤트 기반**: 스케줄러 없이 검사 결과 수신 즉시 동작
+- **상태 변화 시에만 전송**: 알림 피로도 감소
+- **세션별 상태 추적**: 세션 ID 기준으로 상태 관리
+- **비동기 전송**: API 응답 지연 없이 백그라운드 처리
+
+**관련 파일:**
+- `routers/detect.py`: `check_and_send_slack_alert()` - 상태 변화 감지 로직
+- `utils/slack_notifier.py`: `send_slack_alert()` - 웹훅 전송 로직
+- `config/settings.py`: 환경 변수 로드
 
 ---
 
