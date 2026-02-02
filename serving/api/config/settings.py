@@ -21,6 +21,22 @@ API_TITLE = "PCB Defect Detection API"
 API_DESCRIPTION = "Backend for Jetson Edge AI and Streamlit Frontend"
 API_VERSION = "1.0.0"
 
+# AWS S3 Settings
+# 환경 변수에서 로드하거나, .env 파일이 없으면 아래 기본값을 사용 (보안상 환경변수 권장)
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "YOUR_ACCESS_KEY")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "YOUR_SECRET_KEY")
+AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-2")
+S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "pcb-data-storage")
+S3_KEY_PREFIX = "raw/"
+
+# AWS S3 Settings
+# 환경 변수에서 로드하거나, .env 파일이 없으면 아래 기본값을 사용 (보안상 환경변수 권장)
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "YOUR_ACCESS_KEY")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "YOUR_SECRET_KEY")
+AWS_REGION = os.getenv("AWS_REGION", "ap-northeast-2")
+S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "pcb-data-storage")
+S3_KEY_PREFIX = "raw/"
+
 # Health Monitoring Alert Thresholds
 ALERT_THRESHOLDS = {
     # 불량률 임계값 (%)

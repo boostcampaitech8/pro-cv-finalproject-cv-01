@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 import logging
 
 # Import routers, database, and config
-from routers import detect, stats, sessions, monitoring, feedback
+from routers import detect, stats, sessions, images, monitoring, feedback
 from database.db import init_db
 from database import db
 from config import settings
@@ -46,13 +46,17 @@ app.add_middleware(
     allow_headers=settings.CORS_ALLOW_HEADERS,
 )
 
-# Mount static files for images
-app.mount("/images", StaticFiles(directory="images"), name="images")
+# Static files mount removed (S3 Migration)
+# app.mount("/images", StaticFiles(directory="images"), name="images")
+# Static files mount removed (S3 Migration)
+# app.mount("/images", StaticFiles(directory="images"), name="images")
 
 # Apply Routers
 app.include_router(detect.router)
 app.include_router(stats.router)
 app.include_router(sessions.router)
+app.include_router(images.router)
+app.include_router(images.router)
 app.include_router(monitoring.router)
 app.include_router(feedback.router)
 

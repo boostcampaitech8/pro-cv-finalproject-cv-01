@@ -41,17 +41,21 @@ async def receive_detection_result(request: DetectRequest):
                     detail=f"Invalid Base64 image data: {str(e)}"
                 )
 
-            # Save to disk
+            # Save to S3
             try:
-                saved_image_path = image_utils.save_defect_image(
+                saved_image_path = image_utils.save_image_to_s3(
                     image_bytes,
                     request.image_id,
                     request.timestamp
                 )
-            except IOError as e:
+            except Exception as e:
+                # S3 Upload Failed
+                print(f"S3 Upload Error: {e}")
+                # Optional: Fail gracefully or raise error. 
+                # Here we raise error to alert the edge device.
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to save image: {str(e)}"
+                    detail=f"Failed to save image to S3: {str(e)}"
                 )
 
         # 2. Save Log(s) to Database
