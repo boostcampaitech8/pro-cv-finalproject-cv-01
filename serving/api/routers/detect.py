@@ -1,16 +1,28 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from schemas.schemas import DetectRequest, DetectResponse
 from database import db
 from utils import image_utils
+from utils.slack_notifier import send_slack_alert
+from utils.auth import verify_api_key
+from config import settings
+from datetime import datetime
+from typing import Optional
 import base64
 import traceback
+import logging
+
+# 로거 설정
+logger = logging.getLogger("uvicorn")
+
+# 세션별 마지막 상태 추적 (상태 변화 감지용)
+last_status_per_session: dict[int, str] = {}
 
 router = APIRouter(
     prefix="/detect",
     tags=["Detect"]
 )
 
-@router.post("/", response_model=DetectResponse, status_code=status.HTTP_200_OK)
+@router.post("/", response_model=DetectResponse, status_code=status.HTTP_200_OK, dependencies=[Depends(verify_api_key)])
 async def receive_detection_result(request: DetectRequest):
     """
     Receives detection result from Edge/Jetson.

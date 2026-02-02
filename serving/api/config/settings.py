@@ -1,5 +1,9 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Base directory (serving/api/)
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,3 +24,6 @@ CORS_ALLOW_HEADERS = ["*"]
 API_TITLE = "PCB Defect Detection API"
 API_DESCRIPTION = "Backend for Jetson Edge AI and Streamlit Frontend"
 API_VERSION = "1.0.0"
+
+# Edge Device Authentication
+EDGE_API_KEY = os.getenv("EDGE_API_KEY", None)
