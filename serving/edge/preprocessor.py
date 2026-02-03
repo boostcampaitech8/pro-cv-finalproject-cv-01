@@ -41,7 +41,7 @@ class PCBPreprocessor:
         Returns:
             크롭된 PCB 이미지 또는 None
         """
-        # 1. 검사 영역 추출 (config 파일의 ROI 사용)
+        # 1. 검사 영역 추출
         roi = frame[config.ROI_Y1:config.ROI_Y2, config.ROI_X1:config.ROI_X2]
 
         # 2. 표준편차 측정 (BGR - 구분력 더 높음)
@@ -56,7 +56,10 @@ class PCBPreprocessor:
             self.state = "background"
             self._reset()
 
-        # 4. 크롭 시도 (PCB 상태이고 아직 크롭 안 했으면)
+        # 4. 트리거 판단 (background → pcb 전환 시)
+        # trigger = (prev_state == "background" and self.state == "pcb")
+
+        # 5. 크롭 시도 (PCB 상태이고 아직 크롭 안 했으면)
         if self.state == "pcb" and not self.crop_done:
             cropped = self._try_crop(frame)
             if cropped is not None:

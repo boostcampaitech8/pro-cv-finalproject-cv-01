@@ -19,16 +19,7 @@ import config
 from preprocessor import PCBPreprocessor
 from rtsp_receiver import RTSPReceiver
 from inference_worker import InferenceWorker
-
-
-# 기본 설정
-DEFAULT_RTSP_URL = "rtsp://3.36.185.146:8554/pcb_stream"
-DEFAULT_API_URL = "http://3.35.182.98:8080/detect/"
-DEFAULT_SESSION_URL = "http://3.35.182.98:8080/sessions/"
-DEFAULT_MODEL_PATH = os.path.join(os.path.dirname(__file__), "best.pt")
-BACKGROUND_PATH = os.path.join(os.path.dirname(__file__), "background.png")
-FRAME_QUEUE_SIZE = 2
-CROP_QUEUE_SIZE = 10
+from upload_worker import UploadWorker
 
 
 def start_session(session_url: str) -> int:
@@ -68,21 +59,6 @@ def end_session(session_url: str, session_id: int):
         print(f"[Main] 세션 종료 요청 실패: {e}")
 
 
-def generate_background_if_needed():
-    """배경 이미지가 없으면 생성"""
-    if os.path.exists(BACKGROUND_PATH):
-        print(f"[Main] 배경 이미지 존재: {BACKGROUND_PATH}")
-        return
-
-    print("[Main] 배경 이미지 생성 중...")
-    try:
-        from pcb_video import generate_background
-        generate_background(BACKGROUND_PATH)
-    except ImportError:
-        print("[Main] pcb_video 모듈을 찾을 수 없습니다. 배경 이미지를 수동으로 생성하세요.")
-        # sys.exit(1) # 테스트를 위해 일단 진행 가능하게 주석 처리하거나 에러 무시
-
-
 def save_crop_for_debug(crop, output_dir: str, index: int):
     """디버그용 크롭 이미지 저장"""
     os.makedirs(output_dir, exist_ok=True)
@@ -98,18 +74,18 @@ def main():
     parser = argparse.ArgumentParser(description="PCB 전처리 및 추론 파이프라인")
     parser.add_argument(
         "--input", "-i",
-        default=DEFAULT_RTSP_URL,
-        help=f"RTSP URL 또는 비디오 파일 경로 (기본값: {DEFAULT_RTSP_URL})"
+        default=config.RTSP_URL,
+        help=f"RTSP URL 또는 비디오 파일 경로 (기본값: {config.RTSP_URL})"
     )
     parser.add_argument(
         "--api-url", "-a",
-        default=DEFAULT_API_URL,
-        help=f"백엔드 API 주소 (기본값: {DEFAULT_API_URL})"
+        default=config.API_URL,
+        help=f"백엔드 API 주소 (기본값: {config.API_URL})"
     )
     parser.add_argument(
         "--model", "-m",
-        default=DEFAULT_MODEL_PATH,
-        help=f"YOLO 모델 경로 (기본값: {DEFAULT_MODEL_PATH})"
+        default=config.MODEL_PATH,
+        help=f"YOLO 모델 경로 (기본값: {config.MODEL_PATH})"
     )
     parser.add_argument(
         "--loop", "-l",
@@ -122,26 +98,22 @@ def main():
         help="디버그 모드 (크롭 이미지 저장)"
     )
     parser.add_argument(
-        "--debug-dir",
-        default="debug_crops",
-        help="디버그 크롭 저장 디렉토리 (기본값: debug_crops)"
-    )
-    parser.add_argument(
-        "--max-crops",
-        type=int,
-        default=0,
-        help="최대 크롭 개수 (0=무제한, 테스트용)"
-    )
-    parser.add_argument(
         "--session-url",
-        default=DEFAULT_SESSION_URL,
-        help=f"세션 API 주소 (기본값: {DEFAULT_SESSION_URL})"
+        default="http://3.35.182.98:8080/sessions/",
+        help="세션 API 주소"
     )
     parser.add_argument(
         "--no-session",
         action="store_true",
         help="세션 관리 비활성화"
     )
+    parser.add_argument(
+        "--max-crops",
+        type=int,
+        default=0,
+        help="최대 크롭 개수 (0=무제한)"
+    )
+    
     args = parser.parse_args()
 
     # 동적 설정 업데이트 (CLI 인자 우선)
@@ -168,14 +140,13 @@ def main():
     upload_worker = UploadWorker(upload_queue)
     upload_worker.start()
 
-    # 2. 추론 워커 시작 (모델 로드 및 엔진 변환 수행)
+    # 2. 추론 워커 초기화
     print(f"[Main] 추론 워커 초기화 중 (모델: {config.MODEL_PATH})...")
     try:
-        inference_worker = InferenceWorker(crop_queue, args.model, args.api_url, session_id=session_id)
+        inference_worker = InferenceWorker(crop_queue, upload_queue, config.MODEL_PATH, session_id=session_id)
     except Exception as e:
-        print(f"[Main] 추론 워커 환경 설정 실패: {e}")
-        # 세션 종료 후 종료
-        if not args.no_session and session_id:
+        print(f"[Main] 추론 워커 초기화 실패: {e}")
+        if session_id:
             end_session(args.session_url, session_id)
         sys.exit(1)
 
@@ -189,11 +160,11 @@ def main():
         if receiver.is_running():
             break
         if not receiver.is_alive():
-            print("[Main] 수신 스레드가 시작되지 않았습니다.")
+            print("[Main] 수신 스레드 시작 실패")
             sys.exit(1)
         time.sleep(0.1)
     
-    # 4. 모든 준비 완료 후 추론 워커 가동
+    # 4. 추론 워커 가동
     inference_worker.start()
 
     # 전처리기 초기화
@@ -210,9 +181,9 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
 
     print("[Main] 파이프라인 가동 시작")
-    print(f"  - 입력: {args.input}")
-    print(f"  - API: {args.api_url}")
-    print(f"  - 모델: {args.model}")
+    print(f"  - 입력: {config.RTSP_URL}")
+    print(f"  - API: {config.API_URL}")
+    print(f"  - 모델: {config.MODEL_PATH}")
     print(f"  - 세션 ID: {session_id if session_id else '없음'}")
 
     crop_count = 0
@@ -256,13 +227,13 @@ def main():
         print("[Main] 리소스 정리 중...")
         receiver.stop()
         inference_worker.stop()
+        upload_worker.stop()
 
         receiver.join(timeout=2.0)
         inference_worker.join(timeout=2.0)
         upload_worker.join(timeout=2.0)
 
-        # 세션 종료
-        if not args.no_session and session_id:
+        if session_id:
             end_session(args.session_url, session_id)
 
         elapsed = time.time() - start_time
@@ -275,7 +246,6 @@ def main():
         print(f"  평균 성능: {fps:.1f} FPS")
         print(f"  수신 상태: {receiver.get_stats()}")
         print(f"  세션 ID: {session_id if session_id else '없음'}")
-
 
 
 if __name__ == "__main__":

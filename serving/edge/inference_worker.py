@@ -4,9 +4,11 @@ import os
 import base64
 import cv2
 import numpy as np
+import time
 from datetime import datetime
 from ultralytics import YOLO
 from dotenv import load_dotenv
+import config
 
 # Load environment variables
 load_dotenv()
@@ -20,18 +22,18 @@ class InferenceWorker(threading.Thread):
     3. 결과를 upload_queue로 전달
     """
 
-    def __init__(self, crop_queue: queue.Queue, model_path: str, api_url: str, session_id: int = None):
+    def __init__(self, crop_queue: queue.Queue, upload_queue: queue.Queue, model_path: str, session_id: int = None):
         """
         Args:
             crop_queue: 전처리기로부터 크롭된 이미지를 받는 큐
+            upload_queue: 결과를 전송할 업로드 워커용 큐
             model_path: YOLO 모델 경로 (.pt 또는 .engine)
-            api_url: 결과를 전송할 백엔드 API 주소
             session_id: 세션 ID (optional)
         """
         super().__init__(daemon=True)
         self.crop_queue = crop_queue
+        self.upload_queue = upload_queue
         self.model_path = model_path
-        self.api_url = api_url
         self.session_id = session_id
         self.running = False
 
@@ -82,7 +84,7 @@ class InferenceWorker(threading.Thread):
                 try:
                     self.upload_queue.put_nowait(payload)
                 except queue.Full:
-                    # 업로드 큐가 가득 차면 가장 오래된 것 버리고 추가
+                    # 업로드 큐가 가득 차면 가장 오래된 것 버림
                     try:
                         self.upload_queue.get_nowait()
                         self.upload_queue.put_nowait(payload)
@@ -95,6 +97,7 @@ class InferenceWorker(threading.Thread):
                 continue
             except Exception as e:
                 print(f"[InferenceWorker] 루프 중 오류 발생: {e}")
+                time.sleep(0.1)
 
     def _create_payload(self, crop, result):
         """추론 결과를 백엔드 스펙에 맞는 페이로드로 구성"""
@@ -111,13 +114,11 @@ class InferenceWorker(threading.Thread):
         
         detections = []
         for box in result.boxes:
-            # 클래스 ID 확인
             cls_id = int(box.cls[0])
-            # 매핑 시도 -> 없으면 기존 names -> 없으면 classN
             defect_name = QA_LABELS.get(cls_id, result.names.get(cls_id, f"class{cls_id}"))
             
             detections.append({
-                "defect_type": defect_name,  # 수정된 이름 사용
+                "defect_type": defect_name,
                 "confidence": round(float(box.conf[0]), 4),
                 "bbox": [int(float(x)) for x in box.xyxy[0].tolist()]
             })
@@ -137,22 +138,6 @@ class InferenceWorker(threading.Thread):
             "detections": detections,
             "session_id": self.session_id
         }
-
-        # 백엔드 전송
-        try:
-            # API Key 헤더 추가 (환경 변수에서 로드)
-            api_key = os.getenv("EDGE_API_KEY")
-            headers = {}
-            if api_key:
-                headers["X-API-KEY"] = api_key
-            
-            response = requests.post(self.api_url, json=payload, headers=headers, timeout=5.0)
-            if response.status_code == 200 or response.status_code == 201:
-                print(f"[InferenceWorker] {image_id} 전송 성공! (탐지 개수: {len(detections)})")
-            else:
-                print(f"[InferenceWorker] 전송 실패: HTTP {response.status_code} - {response.text}")
-        except requests.exceptions.RequestException as e:
-            print(f"[InferenceWorker] API 서버 연결 실패: {e}")
 
     def stop(self):
         """워커 종료"""

@@ -33,7 +33,13 @@ class UploadWorker(threading.Thread):
                 
                 # 백엔드 전송 시도
                 try:
-                    response = requests.post(config.API_URL, json=payload, timeout=5.0)
+                    # API Key 헤더 추가 (환경 변수에서 로드)
+                    api_key = os.getenv("EDGE_API_KEY")
+                    headers = {}
+                    if api_key:
+                        headers["X-API-KEY"] = api_key
+
+                    response = requests.post(config.API_URL, json=payload, headers=headers, timeout=5.0)
                     if response.status_code in [200, 201]:
                         print(f"[UploadWorker] {image_id} 전송 성공!")
                     else:
