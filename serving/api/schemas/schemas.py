@@ -240,12 +240,14 @@ class FeedbackItem(BaseModel):
 class BulkFeedbackRequest(BaseModel):
     """
     다중 bbox 피드백 생성 요청 (자동 재라벨링)
+
+    false_negative는 feedbacks 배열에 포함하여 제출:
+    {"feedback_type": "false_negative", "comment": "좌측 하단 scratch 누락"}
     """
     log_id: int = Field(..., gt=0)
     image_width: int = Field(..., gt=0, description="크롭된 이미지 너비 (픽셀)")
     image_height: int = Field(..., gt=0, description="크롭된 이미지 높이 (픽셀)")
-    feedbacks: List[FeedbackItem] = Field(..., description="피드백 목록 (피드백 없는 bbox는 제외)")
-    false_negative_memo: Optional[str] = Field(None, max_length=500, description="FALSE_NEGATIVE 메모")
+    feedbacks: List[FeedbackItem] = Field(..., description="피드백 목록 (false_negative 포함)")
     created_by: Optional[str] = Field(None, max_length=100)
 
     @field_validator('feedbacks')
@@ -267,7 +269,7 @@ class BulkFeedbackResponse(BaseModel):
     saved_to_s3: bool = Field(..., description="S3 refined/ 폴더 저장 여부")
     refined_path: Optional[str] = Field(None, description="refined/ 이미지 경로")
     final_label_count: int = Field(..., description="최종 라벨 개수")
-    false_negative_pending: bool = Field(..., description="FALSE_NEGATIVE 대기 중 여부")
+    false_negative_count: int = Field(..., description="FALSE_NEGATIVE 개수")
     created_at: str
 
 

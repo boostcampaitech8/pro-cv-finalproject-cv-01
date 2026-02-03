@@ -158,7 +158,7 @@ async def save_to_refined(
 async def copy_to_needs_labeling(
     image_s3_key: str,
     log_id: int,
-    memo: str,
+    fn_comments: List[str],
     original_detections: Optional[List[Dict]] = None
 ) -> None:
     """
@@ -167,7 +167,7 @@ async def copy_to_needs_labeling(
     Args:
         image_s3_key: raw/20260203/xxx.jpg
         log_id: 검사 로그 ID
-        memo: FALSE_NEGATIVE 메모
+        fn_comments: FALSE_NEGATIVE 코멘트 목록 (다중 지원)
         original_detections: 원본 AI 예측 결과 (선택)
     """
     bucket = settings.S3_BUCKET_NAME
@@ -186,11 +186,12 @@ async def copy_to_needs_labeling(
         logger.error(f"[S3] Failed to copy image to needs_labeling: {image_s3_key}, error: {e}")
         raise
 
-    # 2. 메타데이터 JSON 생성
+    # 2. 메타데이터 JSON 생성 (다중 FN 코멘트 지원)
     metadata = {
         "log_id": log_id,
         "original_s3_key": image_s3_key,
-        "false_negative_memo": memo,
+        "false_negative_comments": fn_comments,
+        "false_negative_count": len(fn_comments),
         "original_detections": original_detections or [],
         "created_at": datetime.now().isoformat()
     }

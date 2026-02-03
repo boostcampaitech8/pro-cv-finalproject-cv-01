@@ -125,9 +125,16 @@ async def create_bulk_feedback(request: BulkFeedbackRequest):
               "feedback_type": "tp_wrong_class",
               "correct_label": "scratch",
               "comment": "hole이 아니라 scratch"
+            },
+            {
+              "feedback_type": "false_negative",
+              "comment": "좌측 하단 scratch 누락"
+            },
+            {
+              "feedback_type": "false_negative",
+              "comment": "우측 상단 hole 누락"
             }
           ],
-          "false_negative_memo": "좌측 하단 scratch 누락",
           "created_by": "qa_team"
         }
 
@@ -153,8 +160,10 @@ async def create_bulk_feedback(request: BulkFeedbackRequest):
         if not image_s3_key:
             raise HTTPException(status_code=400, detail=f"Log {request.log_id} has no image_path")
 
-        # 2. 피드백 데이터 변환
+        # 2. 피드백 데이터 변환 및 FN/non-FN 분리
         feedbacks_data = [item.model_dump() for item in request.feedbacks]
+        fn_feedbacks = [f for f in feedbacks_data if f["feedback_type"] == "false_negative"]
+        non_fn_feedbacks = [f for f in feedbacks_data if f["feedback_type"] != "false_negative"]
 
         # 3. 최종 라벨 생성
         final_labels = []
@@ -163,8 +172,8 @@ async def create_bulk_feedback(request: BulkFeedbackRequest):
         for detection in original_detections:
             bbox = detection["bbox"]
 
-            # target_bbox로 피드백 찾기
-            feedback = find_feedback_by_bbox(feedbacks_data, bbox)
+            # target_bbox로 피드백 찾기 (non-FN만 사용)
+            feedback = find_feedback_by_bbox(non_fn_feedbacks, bbox)
 
             if feedback is None:
                 # 피드백 없음 → 원본 그대로 유지 (암묵적 TP)
@@ -205,40 +214,29 @@ async def create_bulk_feedback(request: BulkFeedbackRequest):
                     detail=f"Failed to save to S3: {str(e)}"
                 )
 
-        # 5. DB 피드백 저장 (피드백 있는 bbox만)
+        # 5. DB 피드백 저장 (모든 피드백, FN 포함)
         for feedback_item in feedbacks_data:
-            if feedback_item["feedback_type"] in ["false_positive", "tp_wrong_class"]:
-                feedback_data = await db.add_feedback(
-                    log_id=request.log_id,
-                    feedback_type=feedback_item["feedback_type"],
-                    target_bbox=feedback_item.get("target_bbox"),
-                    correct_label=feedback_item.get("correct_label"),
-                    comment=feedback_item.get("comment"),
-                    created_by=request.created_by
-                )
-                feedback_ids.append(feedback_data["id"])
-
-        # 6. FALSE_NEGATIVE 처리
-        fn_pending = False
-        if request.false_negative_memo:
-            # DB에 저장
-            fn_data = await db.add_feedback(
+            feedback_data = await db.add_feedback(
                 log_id=request.log_id,
-                feedback_type="false_negative",
-                comment=request.false_negative_memo,
+                feedback_type=feedback_item["feedback_type"],
+                target_bbox=feedback_item.get("target_bbox"),
+                correct_label=feedback_item.get("correct_label"),
+                comment=feedback_item.get("comment"),
                 created_by=request.created_by
             )
-            feedback_ids.append(fn_data["id"])
+            feedback_ids.append(feedback_data["id"])
 
-            # needs_labeling/에 복사
+        # 6. FALSE_NEGATIVE 처리 (다중 지원)
+        fn_count = len(fn_feedbacks)
+        if fn_feedbacks:
+            fn_comments = [f.get("comment", "") for f in fn_feedbacks if f.get("comment")]
             try:
                 await s3_dataset.copy_to_needs_labeling(
                     image_s3_key=image_s3_key,
                     log_id=request.log_id,
-                    memo=request.false_negative_memo,
+                    fn_comments=fn_comments,
                     original_detections=original_detections
                 )
-                fn_pending = True
             except Exception as e:
                 logger.error(f"[S3] Failed to copy to needs_labeling for log_id={request.log_id}: {e}")
                 # FALSE_NEGATIVE는 실패해도 계속 진행 (DB에는 저장됨)
@@ -252,7 +250,7 @@ async def create_bulk_feedback(request: BulkFeedbackRequest):
             f"feedback_count={len(feedback_ids)}, "
             f"final_labels={len(final_labels)}, "
             f"saved_to_s3={saved_to_s3}, "
-            f"fn_pending={fn_pending}, "
+            f"fn_count={fn_count}, "
             f"by={request.created_by or 'anonymous'}"
         )
 
@@ -264,7 +262,7 @@ async def create_bulk_feedback(request: BulkFeedbackRequest):
             saved_to_s3=saved_to_s3,
             refined_path=refined_path,
             final_label_count=len(final_labels),
-            false_negative_pending=fn_pending,
+            false_negative_count=fn_count,
             created_at=datetime.now().isoformat()
         )
 
