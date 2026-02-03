@@ -332,7 +332,7 @@ async def create_bulk_feedback(request: BulkFeedbackRequest):
 
 
 @router.get("/stats", response_model=FeedbackStatsResponse)
-async def get_feedback_statistics():
+async def get_feedback_statistics(session_id: Optional[str] = None):
     """
     피드백 통계 조회 (bbox 기반 정확도 분석)
 
@@ -342,14 +342,23 @@ async def get_feedback_statistics():
     - feedback_stats: 피드백 타입별 집계
     - class_confusion: 클래스 혼동 패턴
 
+    Query Parameters:
+        session_id: 세션 필터 ("latest", 숫자 ID, 생략 시 전체)
+            - 생략: 전체 데이터 통계
+            - "latest": 현재 진행 중인 세션의 통계
+            - 숫자 (예: "1"): 해당 세션의 통계
+
     Returns:
         FeedbackStatsResponse: bbox 기반 정확도 분석 결과
 
     Raises:
+        HTTPException 404: 세션을 찾을 수 없음
         HTTPException 500: 서버 에러
     """
     try:
-        stats_data = await db.get_feedback_stats()
+        # 세션 필터 처리 (기존 resolve_session_filter 재사용)
+        resolved_session_id = await db.resolve_session_filter(session_id)
+        stats_data = await db.get_feedback_stats(session_id=resolved_session_id)
 
         # image_stats 변환
         image_stats = ImageStats(**stats_data["image_stats"])
@@ -393,13 +402,21 @@ async def get_feedback_statistics():
         )
 
 @router.get("/queue", response_model=List[FeedbackQueueResponse])
-async def get_labeling_queue():
+async def get_labeling_queue(session_id: Optional[str] = None):
     """
     라벨링 대기열 조회
     처리되지 않은 피드백 목록을 반환합니다.
+
+    Query Parameters:
+        session_id: 세션 필터 ("latest", 숫자 ID, 생략 시 전체)
+            - 생략: 전체 대기열
+            - "latest": 현재 진행 중인 세션의 대기열
+            - 숫자 (예: "1"): 해당 세션의 대기열
     """
     try:
-        queue_items = await db.get_feedback_queue()
+        # 세션 필터 처리
+        resolved_session_id = await db.resolve_session_filter(session_id)
+        queue_items = await db.get_feedback_queue(session_id=resolved_session_id)
         
         response_list = []
         for item in queue_items:

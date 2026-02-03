@@ -835,10 +835,13 @@ async def add_feedback(
             "target_bbox": target_bbox
         }
 
-async def get_feedback_queue() -> List[Dict]:
+async def get_feedback_queue(session_id: Optional[int] = None) -> List[Dict]:
     """
     처리되지 않은(resolved=0) 피드백 목록 조회
     사용자가 신고한 건들을 라벨링 툴에 보여주기 위함
+
+    Args:
+        session_id: 세션 필터 (None이면 전체, 숫자면 해당 세션만)
     """
     query = """
     SELECT
@@ -852,12 +855,17 @@ async def get_feedback_queue() -> List[Dict]:
         l.detections    -- 원본 AI 예측 결과 (JSON)
     FROM feedback f
     JOIN inspection_logs l ON f.log_id = l.id
-    WHERE f.status != 'resolved' OR f.status IS NULL
-    ORDER BY f.created_at DESC
+    WHERE (f.status != 'resolved' OR f.status IS NULL)
     """
+    params = ()
+    if session_id is not None:
+        query += " AND l.session_id = ?"
+        params = (session_id,)
+    query += " ORDER BY f.created_at DESC"
+
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute(query)
+        cursor = await db.execute(query, params)
         rows = await cursor.fetchall()
         return [dict(row) for row in rows]
 
@@ -911,9 +919,12 @@ def bbox_equals(bbox1: List, bbox2: List, tolerance: int = 2) -> bool:
     return all(abs(a - b) <= tolerance for a, b in zip(bbox1, bbox2))
 
 
-async def get_feedback_stats() -> Dict:
+async def get_feedback_stats(session_id: Optional[int] = None) -> Dict:
     """
     피드백 통계 조회 (bbox 기반 정확도 분석)
+
+    Args:
+        session_id: 세션 필터 (None이면 전체, 숫자면 해당 세션만)
 
     새로운 응답 구조:
     - image_stats: 전체 이미지 + 검증 진행률
@@ -932,8 +943,12 @@ async def get_feedback_stats() -> Dict:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
 
+        # 세션 필터 조건
+        session_filter = " WHERE session_id = ?" if session_id is not None else ""
+        session_params = (session_id,) if session_id is not None else ()
+
         # ===== 1. image_stats 집계 (전체 이미지) =====
-        cursor = await db.execute("""
+        cursor = await db.execute(f"""
             SELECT
                 COUNT(*) as total,
                 SUM(CASE WHEN result = 'defect' THEN 1 ELSE 0 END) as defect_count,
@@ -942,7 +957,8 @@ async def get_feedback_stats() -> Dict:
                 SUM(CASE WHEN is_verified = 1 AND result = 'defect' THEN 1 ELSE 0 END) as verified_defect,
                 SUM(CASE WHEN is_verified = 1 AND result = 'normal' THEN 1 ELSE 0 END) as verified_normal
             FROM inspection_logs
-        """)
+            {session_filter}
+        """, session_params)
         row = await cursor.fetchone()
 
         total = row["total"] or 0
@@ -962,19 +978,26 @@ async def get_feedback_stats() -> Dict:
         }
 
         # ===== 2. bbox_stats 집계 (검증된 defect만) =====
-        # 검증된 defect 로그 조회
-        cursor = await db.execute("""
-            SELECT id, detections
-            FROM inspection_logs
-            WHERE result = 'defect' AND is_verified = 1
-        """)
+        # 검증된 defect 로그 조회 (세션 필터 적용)
+        verified_query = "SELECT id, detections FROM inspection_logs WHERE result = 'defect' AND is_verified = 1"
+        if session_id is not None:
+            verified_query += " AND session_id = ?"
+        cursor = await db.execute(verified_query, session_params)
         verified_defect_logs = await cursor.fetchall()
 
-        # 전체 피드백 조회 (target_bbox 포함)
-        cursor = await db.execute("""
-            SELECT id, log_id, feedback_type, target_bbox, correct_label
-            FROM feedback
-        """)
+        # 전체 피드백 조회 (target_bbox 포함, 세션 필터 시 JOIN)
+        if session_id is not None:
+            cursor = await db.execute("""
+                SELECT f.id, f.log_id, f.feedback_type, f.target_bbox, f.correct_label
+                FROM feedback f
+                JOIN inspection_logs l ON f.log_id = l.id
+                WHERE l.session_id = ?
+            """, (session_id,))
+        else:
+            cursor = await db.execute("""
+                SELECT id, log_id, feedback_type, target_bbox, correct_label
+                FROM feedback
+            """)
         all_feedbacks = await cursor.fetchall()
 
         # 피드백을 log_id별로 그룹화
@@ -1079,12 +1102,21 @@ async def get_feedback_stats() -> Dict:
             else:
                 dt_stats["accuracy"] = 0.0
 
-        # ===== 3. feedback_stats 집계 (전체) =====
-        cursor = await db.execute("""
-            SELECT feedback_type, COUNT(*) as cnt
-            FROM feedback
-            GROUP BY feedback_type
-        """)
+        # ===== 3. feedback_stats 집계 (세션 필터 적용) =====
+        if session_id is not None:
+            cursor = await db.execute("""
+                SELECT f.feedback_type, COUNT(*) as cnt
+                FROM feedback f
+                JOIN inspection_logs l ON f.log_id = l.id
+                WHERE l.session_id = ?
+                GROUP BY f.feedback_type
+            """, (session_id,))
+        else:
+            cursor = await db.execute("""
+                SELECT feedback_type, COUNT(*) as cnt
+                FROM feedback
+                GROUP BY feedback_type
+            """)
         rows = await cursor.fetchall()
 
         feedback_stats = {
