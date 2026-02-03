@@ -70,12 +70,12 @@ const DashboardUpdater = {
 
     // Defect type별 고정 색상 (범례와 일치)
     defectTypeColors: {
-        "missing_hole": "#51cbce",     // primary (cyan)
-        "mouse_bite": "#fbc658",       // warning (yellow)
-        "open_circuit": "#ef8157",     // danger (orange/red)
-        "short": "#6bd098",            // success (green)
-        "spur": "#51bcda",             // info (blue)
-        "spurious_copper": "#e3e3e3"   // gray
+        "Missing Hole": "#51cbce",     // primary (cyan)
+        "Mouse Bite": "#fbc658",       // warning (yellow)
+        "Open Circuit": "#ef8157",     // danger (orange/red)
+        "Short": "#6bd098",            // success (green)
+        "Spur": "#51bcda",             // info (blue)
+        "Spurious Copper": "#e3e3e3"   // gray
     },
 
     init: function () {
@@ -93,6 +93,14 @@ const DashboardUpdater = {
         selector.addEventListener("change", (e) => {
             const value = e.target.value;
             this.selectedSessionId = value ? parseInt(value) : null;
+
+            // Save to localStorage
+            if (this.selectedSessionId) {
+                localStorage.setItem("dashboard_selected_session", this.selectedSessionId);
+            } else {
+                localStorage.removeItem("dashboard_selected_session");
+            }
+
             console.log("Session selected:", this.selectedSessionId);
 
             // 트렌드 차트 리셋 (세션 변경 시)
@@ -133,6 +141,26 @@ const DashboardUpdater = {
 
             selector.appendChild(option);
         });
+
+        // Restore selection from localStorage
+        const savedSession = localStorage.getItem("dashboard_selected_session");
+        if (savedSession) {
+            // Validate if the saved session actually exists in the current list
+            const exists = Array.from(selector.options).some(opt => opt.value === savedSession);
+            if (exists) {
+                selector.value = savedSession;
+                this.selectedSessionId = parseInt(savedSession);
+                // Trigger update with restored session
+                this.trendData = Array(24).fill(null);
+                this.charts.trends.data.datasets[0].data = this.trendData;
+                this.charts.trends.update();
+                this.updateData({ forceChartUpdate: true });
+                console.log("Restored session selection:", this.selectedSessionId);
+            } else {
+                // Remove invalid session from storage
+                localStorage.removeItem("dashboard_selected_session");
+            }
+        }
     },
 
     // 날짜/시간 포맷팅
