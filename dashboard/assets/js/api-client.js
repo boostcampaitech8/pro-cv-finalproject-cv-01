@@ -1,5 +1,5 @@
-// 로컬 테스트 시: "http://localhost:8000"
-// 배포 시: "/api"
+// API Configuration
+// Use proxy path for production, or direct URL for local testing
 const API_BASE_URL = "/api";
 
 const ApiClient = {
@@ -67,6 +67,16 @@ const ApiClient = {
 const DashboardUpdater = {
     charts: {},
     selectedSessionId: null,  // 선택된 세션 ID (null = 전체)
+
+    // Defect type별 고정 색상 (범례와 일치)
+    defectTypeColors: {
+        "missing_hole": "#51cbce",     // primary (cyan)
+        "mouse_bite": "#fbc658",       // warning (yellow)
+        "open_circuit": "#ef8157",     // danger (orange/red)
+        "short": "#6bd098",            // success (green)
+        "spur": "#51bcda",             // info (blue)
+        "spurious_copper": "#e3e3e3"   // gray
+    },
 
     init: function () {
         this.initCharts();
@@ -137,33 +147,40 @@ const DashboardUpdater = {
     },
 
     initCharts: function () {
-        // Initialize Defect Trends Chart (Line)
+        // Initialize Session Trends Chart (Line) - 세션별 통계
         const ctxTrends = document.getElementById("chartDefectTrends").getContext("2d");
-
-        // Generate 00:00 to 23:00 labels
-        this.trendLabels = Array.from({ length: 24 }, (_, i) => `${i.toString().padStart(2, '0')}:00`);
-        this.trendData = Array(24).fill(null); // start as null/empty
 
         this.charts.trends = new Chart(ctxTrends, {
             type: "line",
             data: {
-                labels: this.trendLabels,
+                labels: [],  // 세션 라벨 (Session #1, #2, ...)
                 datasets: [
                     {
-                        borderColor: "#6bd098",
-                        backgroundColor: "rgba(107, 208, 152, 0.3)",
-                        pointRadius: 4,
-                        pointHoverRadius: 4,
+                        borderColor: "#ef8157",  // 빨간색 (결함) - 앞에 표시
+                        backgroundColor: "rgba(239, 129, 87, 0.3)",
+                        pointRadius: 0,  // 동그라미 제거
+                        pointHoverRadius: 0,
                         borderWidth: 3,
-                        label: "Total Defects",
-                        data: this.trendData,
+                        label: "Defects",
+                        data: [],
                         fill: true,
-                        spanGaps: true // Connect points if there are gaps, or set false to see dots
+                        spanGaps: false
+                    },
+                    {
+                        borderColor: "#6bd098",  // 초록색 (총 검사)
+                        backgroundColor: "rgba(107, 208, 152, 0.3)",
+                        pointRadius: 0,  // 동그라미 제거
+                        pointHoverRadius: 0,
+                        borderWidth: 3,
+                        label: "Total Inspections",
+                        data: [],
+                        fill: true,
+                        spanGaps: false
                     },
                 ],
             },
             options: {
-                legend: { display: false },
+                legend: { display: false },  // 범례 숨김
                 tooltips: { enabled: true },
                 scales: {
                     yAxes: [
@@ -182,7 +199,6 @@ const DashboardUpdater = {
                     ],
                     xAxes: [
                         {
-                            // barPercentage: 1.6,
                             gridLines: {
                                 drawBorder: false,
                                 color: "rgba(255,255,255,0.1)",
@@ -207,14 +223,7 @@ const DashboardUpdater = {
                         label: "Defects",
                         pointRadius: 0,
                         pointHoverRadius: 0,
-                        backgroundColor: [
-                            "#51cbce",
-                            "#fbc658",
-                            "#ef8157",
-                            "#6bd098",
-                            "#51bcda",
-                            "#e3e3e3",
-                        ],
+                        backgroundColor: [],  // 동적으로 할당
                         borderWidth: 0,
                         data: [],
                     },
@@ -254,48 +263,77 @@ const DashboardUpdater = {
             },
         });
 
-        // Initialize Confidence Chart (Line)
+        // Initialize Confidence Chart (Line) - 개선된 디자인
         const ctxConfidence = document.getElementById("chartConfidence").getContext("2d");
+
+        // 그라디언트 생성
+        const gradientStroke = ctxConfidence.createLinearGradient(0, 230, 0, 50);
+        gradientStroke.addColorStop(1, 'rgba(251, 198, 88, 0.3)');
+        gradientStroke.addColorStop(0.4, 'rgba(251, 198, 88, 0.1)');
+        gradientStroke.addColorStop(0, 'rgba(251, 198, 88, 0)');
+
         this.charts.confidence = new Chart(ctxConfidence, {
             type: "line",
-            hover: false,
             data: {
                 labels: [],
                 datasets: [
                     {
                         data: [],
-                        fill: false,
-                        borderColor: "#fbc658",
-                        backgroundColor: "transparent",
-                        pointBorderColor: "#fbc658",
-                        pointRadius: 4,
-                        pointHoverRadius: 4,
-                        pointBorderWidth: 8,
-                        label: "Defect Confidence",
+                        fill: true,
+                        borderColor: "#fbc658",  // 골든 옐로우
+                        backgroundColor: gradientStroke,
+                        pointBackgroundColor: "#fbc658",
+                        pointBorderColor: "#fff",
+                        pointRadius: 6,
+                        pointHoverRadius: 8,
+                        pointBorderWidth: 3,
+                        borderWidth: 3,
+                        label: "Avg Confidence",
+                        tension: 0.4,  // 부드러운 곡선
                     },
                 ],
             },
             options: {
-                legend: { display: false, position: "top" },
+                legend: { display: false },
                 layout: {
-                    padding: { top: 15, right: 15, left: 10, bottom: 10 }
+                    padding: { top: 15, right: 15, left: 15, bottom: 10 }
                 },
                 scales: {
                     yAxes: [{
                         ticks: {
-                            // suggestedMax: 100 // Scale is 0-100% or 0-1? If user sees 0.92, it's 0-1. 
-                            // Wait, user image shows 0.92. So range is 0-1.
-                            // BE careful. If I set max 100 it will flatline at bottom.
-                            // Let's use suggestedMax 1.05 or just padding.
-                            // Actually, let's just stick to padding.
-                            // suggestedMax: 1.0 
+                            fontColor: "#9f9f9f",
+                            beginAtZero: false,
+                            min: 0,
+                            max: 1,
+                            maxTicksLimit: 5,
+                            callback: function (value) {
+                                return (value * 100).toFixed(0) + '%';  // 퍼센트로 표시
+                            }
                         },
                         gridLines: {
                             drawBorder: false,
                             zeroLineColor: "transparent",
-                            color: 'rgba(0,0,0,0.1)'
+                            color: 'rgba(0,0,0,0.05)'
+                        }
+                    }],
+                    xAxes: [{
+                        ticks: {
+                            fontColor: "#9f9f9f",
+                            padding: 10
+                        },
+                        gridLines: {
+                            drawBorder: false,
+                            display: false
                         }
                     }]
+                },
+                tooltips: {
+                    enabled: true,
+                    callbacks: {
+                        label: function (tooltipItem) {
+                            return 'Confidence: ' + (tooltipItem.yLabel * 100).toFixed(1) + '%';
+                        }
+                    }
                 }
             },
         });
@@ -303,8 +341,10 @@ const DashboardUpdater = {
 
     startPolling: function () {
         this.updateData();
+        this.updateSessionChart();  // 초기 세션 차트 로드
         // 세션 목록도 주기적으로 갱신 (5초마다)
         setInterval(() => this.loadSessions(), 5000);
+        setInterval(() => this.updateSessionChart(), 5000);  // 세션 차트도 5초마다
         setInterval(() => this.updateData(), 1000); // Poll every 1 second
     },
 
@@ -323,8 +363,8 @@ const DashboardUpdater = {
             // const rate = stats.defect_rate !== undefined ? stats.defect_rate.toFixed(2) : "0.00";
             // document.getElementById("defect-rate").innerText = `${rate}%`;
 
-            // Update Trend Chart (Total Defects)
-            this.updateTrendChart(stats.total_defects || 0, forceChartUpdate);
+            // Update Session Trends Chart
+            this.updateSessionChart();
         }
 
         const defects = await ApiClient.getDefects(sessionId);
@@ -332,98 +372,93 @@ const DashboardUpdater = {
             this.updateTypesChart(defects);
         }
 
-        // Always fetch latest logs as stats.recent_defects is deprecated in new API
-        const latest = await ApiClient.getLatest(10, sessionId);
+        // Always fetch latest logs (세션별 필터링)
+        const latest = await ApiClient.getLatest(50, sessionId);  // 더 많이 가져와서 defect만 필터링
         if (latest) {
-            // Filter only defects for confidence chart, or show latest if no defects found?
-            // Usually we want to track confidence of actual defects.
+            // defect만 필터링
             const defectsOnly = latest.filter(item => item.result === 'defect');
-            // If there are no recent defects, show generic latest items (which might be normal)
-            // or just show empty if we strictly want Defects.
-            // Let's fallback to latest if defectsOnly is empty but typically we want confidence of defects.
-            // If latest has no defects, defectsOnly is empty.
-            this.updateConfidenceChart(defectsOnly.length > 0 ? defectsOnly : []);
+            this.updateConfidenceChart(defectsOnly.slice(0, 10));  // 최대 10개
         }
     },
 
-    // Trend Data Management
-    trendData: [],
-    trendLabels: [],
-    // lastTrendHour: null, // Removed as we use direct index mapping now
+    // Session Statistics Chart Update
+    updateSessionChart: async function () {
+        try {
+            // 최근 10개 세션 가져오기
+            const sessionsData = await ApiClient.getSessions();
+            if (!sessionsData || !sessionsData.sessions) return;
 
-    updateTrendChart: function (totalDefects, forceUpdate) {
-        const now = new Date();
-        const currentHour = now.getHours(); // 0-23
+            const sessions = sessionsData.sessions.slice(0, 10).reverse(); // 최근 10개, 오래된 순
 
-        // Update the data point for the current hour
-        // Since it's cumulative, we just overwrite the current hour's value with the latest total count
-        // We don't touch other hours (they remain null or their previous values)
+            const labels = [];
+            const inspections = [];
+            const defects = [];
 
-        // Check if value changed to avoid unnecessary redraws? 
-        // Chart.js handles updates efficiently, but let's just update.
-
-        if (this.trendData[currentHour] !== totalDefects) {
-            this.trendData[currentHour] = totalDefects;
-            this.charts.trends.data.datasets[0].data = this.trendData;
-            this.charts.trends.update();
-
-            this.saveTrendData();
-        }
-    },
-
-    saveTrendData: function () {
-        const today = new Date().toDateString(); // e.g., "Sun Jan 18 2026"
-        const payload = {
-            date: today,
-            data: this.trendData
-        };
-        localStorage.setItem('defectTrends', JSON.stringify(payload));
-    },
-
-    loadTrendData: function () {
-        const today = new Date().toDateString();
-        const stored = localStorage.getItem('defectTrends');
-
-        if (stored) {
-            try {
-                const parsed = JSON.parse(stored);
-                if (parsed.date === today) {
-                    this.trendData = parsed.data;
-                    return;
+            // 각 세션의 통계 가져오기
+            for (const session of sessions) {
+                const stats = await ApiClient.getStats(session.id);
+                if (stats) {
+                    labels.push(`#${session.id}`);
+                    inspections.push(stats.total_inspections || 0);
+                    defects.push(stats.defect_items || 0);
                 }
-            } catch (e) {
-                console.error("Failed to parse stored trend data", e);
             }
+
+            // 차트 업데이트 - datasets 순서 변경됨 (defects가 [0], inspections가 [1])
+            this.charts.trends.data.labels = labels;
+            this.charts.trends.data.datasets[0].data = defects;  // 빨간색 (앞)
+            this.charts.trends.data.datasets[1].data = inspections;  // 초록색 (뒤)
+            this.charts.trends.update();
+        } catch (error) {
+            console.error('Error updating session chart:', error);
         }
-
-        // Default / Reset if new day or no data
-        this.trendData = Array(24).fill(null);
     },
-
-    // pushTrendData removed as we use fixed 24h array  },
 
     updateTypesChart: function (defectsData) {
-        // defectsData is like { "scratch": 5, "dent": 2 }
+        // defectsData is like { "missing_hole": 5, "mouse_bite": 2 }
         const labels = Object.keys(defectsData);
         const data = Object.values(defectsData);
 
+        // 각 defect type에 맞는 색상 할당
+        const colors = labels.map(defectType => {
+            return this.defectTypeColors[defectType] || "#cccccc";  // 기본 회색
+        });
+
         this.charts.types.data.labels = labels;
         this.charts.types.data.datasets[0].data = data;
+        this.charts.types.data.datasets[0].backgroundColor = colors;
         this.charts.types.update();
     },
 
     updateConfidenceChart: function (items) {
-        // items is array of objects with 'confidence'
-        // Take last 10
-        const recent = items.slice(0, 10);
-        const data = recent.map(item => {
+        if (!items || items.length === 0) {
+            // 데이터가 없으면 차트 비우기
+            this.charts.confidence.data.labels = [];
+            this.charts.confidence.data.datasets[0].data = [];
+            this.charts.confidence.update();
+            return;
+        }
+
+        // 이미지당 평균 confidence 계산
+        const chartData = items.map(item => {
             if (item.detections && item.detections.length > 0) {
-                // Use the confidence of the first detection or max
-                return item.detections[0].confidence;
+                // 여러 detection이 있는 경우 평균 계산
+                const totalConfidence = item.detections.reduce(
+                    (sum, det) => sum + det.confidence, 0
+                );
+                const avgConfidence = totalConfidence / item.detections.length;
+                return {
+                    imageId: item.image_id,
+                    confidence: avgConfidence,
+                    detectionCount: item.detections.length
+                };
             }
-            return 0;
-        });
-        const labels = recent.map((_, i) => `Defect ${i + 1}`); // Simple labels
+            return null;
+        }).filter(item => item !== null);
+
+        // 차트 업데이트
+        const labels = chartData.map((item, i) => `#${i + 1}`);
+        const data = chartData.map(item => item.confidence);
 
         this.charts.confidence.data.labels = labels;
         this.charts.confidence.data.datasets[0].data = data;

@@ -222,8 +222,8 @@ Coded by www.creative-tim.com
           <div class="col-md-12">
             <div class="card ">
               <div class="card-header ">
-                <h5 class="card-title">Defect Trends</h5>
-                <p class="card-category">Real-time Performance</p>
+                <h5 class="card-title">Session Statistics</h5>
+                <p class="card-category">Inspection & Defect Trends by Session</p>
               </div>
               <div class="card-body ">
                 <canvas id=chartDefectTrends width="400" height="100"></canvas>
@@ -231,7 +231,7 @@ Coded by www.creative-tim.com
               <div class="card-footer ">
                 <hr>
                 <div class="stats">
-                  <i class="fa fa-history"></i> Updated every second
+                  <i class="fa fa-history"></i> Updated every 5 seconds
                 </div>
               </div>
             </div>
@@ -269,19 +269,16 @@ Coded by www.creative-tim.com
           <div class="col-md-8">
             <div class="card card-chart">
               <div class="card-header">
-                <h5 class="card-title">Recent Defect Confidence</h5>
-                <p class="card-category">Confidence scores of last detected defects</p>
+                <h5 class="card-title">Session Defect Confidence</h5>
+                <p class="card-category">Average detection confidence per defect image</p>
               </div>
               <div class="card-body">
                 <canvas id="chartConfidence" width="400" height="100"></canvas>
               </div>
               <div class="card-footer">
-                <div class="chart-legend">
-                  <i class="fa fa-circle text-warning"></i> Confidence
-                </div>
                 <hr />
                 <div class="card-stats">
-                  <i class="fa fa-check"></i> Data information certified
+                  <i class="fa fa-check"></i> Session-based filtering enabled
                 </div>
               </div>
             </div>
