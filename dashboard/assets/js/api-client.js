@@ -421,8 +421,12 @@ const DashboardUpdater = {
             const conf = data.defect_confidence_stats ? data.defect_confidence_stats.avg_confidence : 0;
             document.getElementById("h-avg-confidence").innerText = conf.toFixed(2);
         }
-        if (document.getElementById("h-low-conf-ratio")) document.getElementById("h-low-conf-ratio").innerText = `${data.low_confidence_ratio.toFixed(1)}%`;
-        if (document.getElementById("h-avg-defects")) document.getElementById("h-avg-defects").innerText = data.avg_defects_per_item.toFixed(1);
+        if (document.getElementById("h-low-conf-ratio") && data.low_confidence_ratio !== undefined) {
+            document.getElementById("h-low-conf-ratio").innerText = `${data.low_confidence_ratio.toFixed(1)}%`;
+        }
+        if (document.getElementById("h-avg-defects") && data.avg_defects_per_item !== undefined) {
+            document.getElementById("h-avg-defects").innerText = data.avg_defects_per_item.toFixed(1);
+        }
 
         // 알림 테이블
         const tableBody = document.getElementById("alerts-table-body");
