@@ -174,6 +174,7 @@ class HealthResponse(BaseModel):
     defect_rate: float = Field(..., description="불량률 (%)")
     total_defects: int = Field(..., description="총 결함 개수")
     avg_defects_per_item: float = Field(..., description="불량 PCB당 평균 결함 개수")
+    low_confidence_ratio: float = Field(default=0.0, description="저신뢰도 결함 비율 (%)")
     defect_confidence_stats: Optional[DefectConfidenceStats] = Field(None, description="결함 신뢰도 통계")
     defect_type_stats: List[DefectTypeStat] = Field(default_factory=list, description="결함 타입별 통계")
     alerts: List[AlertInfo] = Field(default_factory=list, description="알림 목록")

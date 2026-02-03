@@ -37,9 +37,10 @@ gulp.task('serve', function () {
     server: {
       baseDir: "./",
       middleware: [
-        createProxyMiddleware('/api', {
-          target: 'http://3.36.185.146:80',
+        createProxyMiddleware({
+          target: 'http://127.0.0.1:8000',
           changeOrigin: true,
+          pathFilter: '/api',
           pathRewrite: {
             '^/api': '' // remove /api prefix when forwarding
           }

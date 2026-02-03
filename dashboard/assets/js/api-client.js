@@ -51,9 +51,7 @@ const ApiClient = {
     getLatest: async (limit = 10, sessionId = null) => {
         try {
             let url = `${API_BASE_URL}/latest?limit=${limit}`;
-            if (sessionId) {
-                url += `&session_id=${sessionId}`;
-            }
+            if (sessionId) url += `&session_id=${sessionId}`;
             const response = await fetch(url);
             if (!response.ok) throw new Error("Network response was not ok");
             return await response.json();
@@ -62,11 +60,36 @@ const ApiClient = {
             return null;
         }
     },
+    // 모니터링 상세 API
+    getHealth: async (sessionId = null) => {
+        try {
+            let url = `${API_BASE_URL}/monitoring/health`;
+            if (sessionId) url += `?session_id=${sessionId}`;
+            const response = await fetch(url);
+            return await response.json();
+        } catch (error) {
+            console.error("Error fetching health:", error);
+            return null;
+        }
+    },
+    // 알림 요약 API (배너용)
+    getAlerts: async (sessionId = null) => {
+        try {
+            let url = `${API_BASE_URL}/monitoring/alerts`;
+            if (sessionId) url += `?session_id=${sessionId}`;
+            const response = await fetch(url);
+            return await response.json();
+        } catch (error) {
+            console.error("Error fetching alerts:", error);
+            return null;
+        }
+    }
 };
 
 const DashboardUpdater = {
     charts: {},
     selectedSessionId: null,  // 선택된 세션 ID (null = 전체)
+    dismissedAlertSession: undefined, // 알림을 끈 세션 ID 저장
 
     // Defect type별 고정 색상 (범례와 일치)
     defectTypeColors: {
@@ -79,6 +102,15 @@ const DashboardUpdater = {
     },
 
     init: function () {
+        // 페이지 종류 확인 (Health 페이지인지 체크)
+        this.isHealthPage = window.location.pathname.includes('health.html');
+
+        // 세션 ID 복원
+        const savedSession = sessionStorage.getItem("selectedSessionId");
+        if (savedSession !== null) {
+            this.selectedSessionId = savedSession === "null" ? null : parseInt(savedSession);
+        }
+
         this.initCharts();
         this.initSessionSelector();
         this.startPolling();
@@ -94,19 +126,23 @@ const DashboardUpdater = {
             const value = e.target.value;
             this.selectedSessionId = value ? parseInt(value) : null;
 
-            // Save to localStorage
+            // 두 저장소 모두 업데이트 (호환성 유지)
+            sessionStorage.setItem("selectedSessionId", this.selectedSessionId);
             if (this.selectedSessionId) {
                 localStorage.setItem("dashboard_selected_session", this.selectedSessionId);
             } else {
                 localStorage.removeItem("dashboard_selected_session");
             }
 
+            this.dismissedAlertSession = undefined; // 세션 변경 시 알림 초기화
             console.log("Session selected:", this.selectedSessionId);
 
             // 트렌드 차트 리셋 (세션 변경 시)
-            this.trendData = Array(24).fill(null);
-            this.charts.trends.data.datasets[0].data = this.trendData;
-            this.charts.trends.update();
+            if (this.charts.trends) {
+                this.trendData = Array(24).fill(null);
+                this.charts.trends.data.datasets[0].data = this.trendData;
+                this.charts.trends.update();
+            }
 
             // 즉시 데이터 업데이트
             this.updateData({ forceChartUpdate: true });
@@ -134,6 +170,11 @@ const DashboardUpdater = {
             const option = document.createElement("option");
             option.value = session.id;
 
+            // 저장된 세션과 일치하면 선택 상태로
+            if (this.selectedSessionId === session.id) {
+                option.selected = true;
+            }
+
             // 시간 포맷팅
             const startTime = this.formatDateTime(session.started_at);
             const endTime = session.ended_at ? this.formatDateTime(session.ended_at) : "진행중";
@@ -142,23 +183,19 @@ const DashboardUpdater = {
             selector.appendChild(option);
         });
 
-        // Restore selection from localStorage
-        const savedSession = localStorage.getItem("dashboard_selected_session");
-        if (savedSession) {
-            // Validate if the saved session actually exists in the current list
-            const exists = Array.from(selector.options).some(opt => opt.value === savedSession);
-            if (exists) {
-                selector.value = savedSession;
-                this.selectedSessionId = parseInt(savedSession);
-                // Trigger update with restored session
-                this.trendData = Array(24).fill(null);
-                this.charts.trends.data.datasets[0].data = this.trendData;
-                this.charts.trends.update();
-                this.updateData({ forceChartUpdate: true });
-                console.log("Restored session selection:", this.selectedSessionId);
-            } else {
-                // Remove invalid session from storage
+        // "전체" 옵션 선택 처리 + 유효성 검증 (dev 로직 통합)
+        if (this.selectedSessionId === null) {
+            selector.options[0].selected = true;
+        } else {
+            // 저장된 세션이 실제 목록에 존재하는지 검증
+            const exists = Array.from(selector.options).some(opt => opt.value == this.selectedSessionId);
+            if (!exists) {
+                // 목록에 없는 세션이면 "전체"로 복구하고 저장소 정리
+                selector.options[0].selected = true;
+                this.selectedSessionId = null;
                 localStorage.removeItem("dashboard_selected_session");
+                sessionStorage.removeItem("selectedSessionId");
+                console.log("Invalid session removed, reset to All Sessions");
             }
         }
     },
@@ -176,241 +213,274 @@ const DashboardUpdater = {
 
     initCharts: function () {
         // Initialize Session Trends Chart (Line) - 세션별 통계
-        const ctxTrends = document.getElementById("chartDefectTrends").getContext("2d");
-
-        this.charts.trends = new Chart(ctxTrends, {
-            type: "line",
-            data: {
-                labels: [],  // 세션 라벨 (Session #1, #2, ...)
-                datasets: [
-                    {
-                        borderColor: "#ef8157",  // 빨간색 (결함) - 앞에 표시
-                        backgroundColor: "rgba(239, 129, 87, 0.3)",
-                        pointRadius: 0,  // 동그라미 제거
-                        pointHoverRadius: 0,
-                        borderWidth: 3,
-                        label: "Defects",
-                        data: [],
-                        fill: true,
-                        spanGaps: false
-                    },
-                    {
-                        borderColor: "#6bd098",  // 초록색 (총 검사)
-                        backgroundColor: "rgba(107, 208, 152, 0.3)",
-                        pointRadius: 0,  // 동그라미 제거
-                        pointHoverRadius: 0,
-                        borderWidth: 3,
-                        label: "Total Inspections",
-                        data: [],
-                        fill: true,
-                        spanGaps: false
-                    },
-                ],
-            },
-            options: {
-                legend: { display: false },  // 범례 숨김
-                tooltips: { enabled: true },
-                scales: {
-                    yAxes: [
-                        {
-                            ticks: {
-                                fontColor: "#9f9f9f",
-                                beginAtZero: true,
-                                maxTicksLimit: 5,
-                            },
-                            gridLines: {
-                                drawBorder: false,
-                                zeroLineColor: "#ccc",
-                                color: "rgba(255,255,255,0.05)",
-                            },
-                        },
-                    ],
-                    xAxes: [
-                        {
-                            gridLines: {
-                                drawBorder: false,
-                                color: "rgba(255,255,255,0.1)",
-                                zeroLineColor: "transparent",
-                                display: false,
-                            },
-                            ticks: { padding: 20, fontColor: "#9f9f9f" },
-                        },
+        const elTrends = document.getElementById("chartDefectTrends");
+        if (elTrends) {
+            const ctxTrends = elTrends.getContext("2d");
+            this.charts.trends = new Chart(ctxTrends, {
+                type: "line",
+                data: {
+                    labels: [], datasets: [
+                        { borderColor: "#ef8157", backgroundColor: "rgba(239, 129, 87, 0.3)", pointRadius: 0, borderWidth: 3, label: "Defects", data: [], fill: true },
+                        { borderColor: "#6bd098", backgroundColor: "rgba(107, 208, 152, 0.3)", pointRadius: 0, borderWidth: 3, label: "Total Inspections", data: [], fill: true }
                     ],
                 },
-            },
-        });
-
-        // Initialize Defect Types Chart (Pie)
-        const ctxTypes = document.getElementById("chartEmail").getContext("2d");
-        this.charts.types = new Chart(ctxTypes, {
-            type: "pie",
-            data: {
-                labels: [],
-                datasets: [
-                    {
-                        label: "Defects",
-                        pointRadius: 0,
-                        pointHoverRadius: 0,
-                        backgroundColor: [],  // 동적으로 할당
-                        borderWidth: 0,
-                        data: [],
-                    },
-                ],
-            },
-            options: {
-                legend: { display: false },
-                pieceLabel: {
-                    render: "percentage",
-                    fontColor: ["white"],
-                    precision: 2,
-                },
-                tooltips: { enabled: true },
-                scales: {
-                    yAxes: [
-                        {
-                            ticks: { display: false },
-                            gridLines: {
-                                drawBorder: false,
-                                zeroLineColor: "transparent",
-                                color: "rgba(255,255,255,0.05)",
-                            },
-                        },
-                    ],
-                    xAxes: [
-                        {
-                            barPercentage: 1.6,
-                            gridLines: {
-                                drawBorder: false,
-                                color: "rgba(255,255,255,0.1)",
-                                zeroLineColor: "transparent",
-                            },
-                            ticks: { display: false },
-                        },
-                    ],
-                },
-            },
-        });
-
-        // Initialize Confidence Chart (Line) - 개선된 디자인
-        const ctxConfidence = document.getElementById("chartConfidence").getContext("2d");
-
-        // 그라디언트 생성
-        const gradientStroke = ctxConfidence.createLinearGradient(0, 230, 0, 50);
-        gradientStroke.addColorStop(1, 'rgba(251, 198, 88, 0.3)');
-        gradientStroke.addColorStop(0.4, 'rgba(251, 198, 88, 0.1)');
-        gradientStroke.addColorStop(0, 'rgba(251, 198, 88, 0)');
-
-        this.charts.confidence = new Chart(ctxConfidence, {
-            type: "line",
-            data: {
-                labels: [],
-                datasets: [
-                    {
-                        data: [],
-                        fill: true,
-                        borderColor: "#fbc658",  // 골든 옐로우
-                        backgroundColor: gradientStroke,
-                        pointBackgroundColor: "#fbc658",
-                        pointBorderColor: "#fff",
-                        pointRadius: 6,
-                        pointHoverRadius: 8,
-                        pointBorderWidth: 3,
-                        borderWidth: 3,
-                        label: "Avg Confidence",
-                        tension: 0.4,  // 부드러운 곡선
-                    },
-                ],
-            },
-            options: {
-                legend: { display: false },
-                layout: {
-                    padding: { top: 15, right: 15, left: 15, bottom: 10 }
-                },
-                scales: {
-                    yAxes: [{
-                        ticks: {
-                            fontColor: "#9f9f9f",
-                            beginAtZero: false,
-                            min: 0,
-                            max: 1,
-                            maxTicksLimit: 5,
-                            callback: function (value) {
-                                return (value * 100).toFixed(0) + '%';  // 퍼센트로 표시
-                            }
-                        },
-                        gridLines: {
-                            drawBorder: false,
-                            zeroLineColor: "transparent",
-                            color: 'rgba(0,0,0,0.05)'
-                        }
-                    }],
-                    xAxes: [{
-                        ticks: {
-                            fontColor: "#9f9f9f",
-                            padding: 10
-                        },
-                        gridLines: {
-                            drawBorder: false,
-                            display: false
-                        }
-                    }]
-                },
-                tooltips: {
-                    enabled: true,
-                    callbacks: {
-                        label: function (tooltipItem) {
-                            return 'Confidence: ' + (tooltipItem.yLabel * 100).toFixed(1) + '%';
-                        }
+                options: {
+                    legend: { display: false },
+                    scales: {
+                        yAxes: [{ ticks: { fontColor: "#9f9f9f", beginAtZero: true, maxTicksLimit: 5 }, gridLines: { drawBorder: false, color: "rgba(255,255,255,0.05)" } }],
+                        xAxes: [{ gridLines: { display: false }, ticks: { padding: 20, fontColor: "#9f9f9f" } }]
                     }
                 }
-            },
-        });
+            });
+        }
+
+        // Initialize Defect Types Chart (Pie)
+        const elEmail = document.getElementById("chartEmail");
+        if (elEmail) {
+            const ctxTypes = elEmail.getContext("2d");
+            this.charts.types = new Chart(ctxTypes, {
+                type: "pie",
+                data: { labels: [], datasets: [{ label: "Defects", backgroundColor: [], borderWidth: 0, data: [] }] },
+                options: { legend: { display: false }, pieceLabel: { render: "percentage", fontColor: ["white"] }, tooltips: { enabled: true } }
+            });
+        }
+
+        // Initialize Confidence Chart (Line)
+        const elConfidence = document.getElementById("chartConfidence");
+        if (elConfidence) {
+            const ctxConfidence = elConfidence.getContext("2d");
+            const gradientStroke = ctxConfidence.createLinearGradient(0, 230, 0, 50);
+            gradientStroke.addColorStop(1, 'rgba(251, 198, 88, 0.3)'); gradientStroke.addColorStop(0, 'rgba(251, 198, 88, 0)');
+            this.charts.confidence = new Chart(ctxConfidence, {
+                type: "line",
+                data: { labels: [], datasets: [{ data: [], fill: true, borderColor: "#fbc658", backgroundColor: gradientStroke, pointRadius: 6, borderWidth: 3, label: "Avg Confidence", tension: 0.4 }] },
+                options: {
+                    legend: { display: false },
+                    scales: {
+                        yAxes: [{ ticks: { fontColor: "#9f9f9f", beginAtZero: false, min: 0, max: 1, callback: (v) => (v * 100).toFixed(0) + '%' } }],
+                        xAxes: [{ ticks: { fontColor: "#9f9f9f" }, gridLines: { display: false } }]
+                    }
+                }
+            });
+        }
+
+        // Health Page Charts
+        const elConfDist = document.getElementById("chartConfidenceDist");
+        if (elConfDist) {
+            this.charts.confDist = new Chart(elConfDist.getContext("2d"), {
+                type: "doughnut",
+                data: {
+                    labels: ["High (>=90%)", "Med (80~90%)", "Low (70~80%)", "Critical (<70%)"],
+                    datasets: [{
+                        backgroundColor: ["#6bd098", "#fbc658", "#ef8157", "#c0c0c0"],
+                        data: [0, 0, 0, 0]
+                    }]
+                },
+                options: { legend: { position: 'bottom' } }
+            });
+        }
+
+        const elTypeDist = document.getElementById("chartDefectTypesDist");
+        if (elTypeDist) {
+            this.charts.typeDist = new Chart(elTypeDist.getContext("2d"), {
+                type: "horizontalBar",
+                data: { labels: [], datasets: [{ label: "Count", backgroundColor: "#51bcda", data: [] }] },
+                options: {
+                    legend: { display: false },
+                    scales: { xAxes: [{ ticks: { beginAtZero: true } }] }
+                }
+            });
+        }
     },
 
     startPolling: function () {
         this.updateData();
         this.updateSessionChart();  // 초기 세션 차트 로드
+
+        // Health 페이지가 아닐 때만 초기 배너 로드 (Health는 updateData 내부에서 처리)
+        if (!this.isHealthPage) {
+            this.updateAlertBanner();
+        }
+
         // 세션 목록도 주기적으로 갱신 (5초마다)
         setInterval(() => this.loadSessions(), 5000);
         setInterval(() => this.updateSessionChart(), 5000);  // 세션 차트도 5초마다
-        setInterval(() => this.updateData(), 1000); // Poll every 1 second
+
+        // 실시간 업데이트
+        setInterval(() => {
+            this.updateData();
+            // Health 페이지가 아닐 때만 배너 별도 업데이트
+            if (!this.isHealthPage) {
+                this.updateAlertBanner();
+            }
+        }, 1000);
+    },
+
+    // 공통 알림 배너 업데이트
+    updateAlertBanner: async function () {
+        const container = document.getElementById("alert-banner-container");
+        if (!container) return;
+
+        // 현재 세션에서 이미 알림을 껐다면 표시하지 않음
+        if (this.dismissedAlertSession === this.selectedSessionId) return;
+
+        // Health 페이지에서는 이미 로드된 healthData 사용 (일관성 보장)
+        let alerts = [];
+        if (this.isHealthPage && this.cachedHealthData && this.cachedHealthData.alerts) {
+            alerts = this.cachedHealthData.alerts;
+        } else {
+            // Dashboard 페이지에서는 별도 API 호출
+            const data = await ApiClient.getAlerts(this.selectedSessionId);
+            if (data && data.alerts) {
+                alerts = data.alerts;
+            }
+        }
+
+        if (alerts.length === 0) {
+            container.innerHTML = "";
+            return;
+        }
+
+        // 가장 심각한 알림 하나만 표시
+        const mainAlert = alerts[0];
+        const levelClass = mainAlert.level === 'critical' ? 'alert-danger' : 'alert-warning';
+        const icon = mainAlert.level === 'critical' ? 'nc-bell-55' : 'nc-alert-circle-i';
+
+        container.innerHTML = `
+            <div class="alert ${levelClass} alert-dismissible fade show" role="alert" style="margin-bottom: 0; padding-left: 50px;">
+                <i class="nc-icon ${icon}" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); font-size: 20px;"></i>
+                <span>
+                    <b>[${mainAlert.level.toUpperCase()}]</b> ${mainAlert.message}
+                </span>
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close" onclick="DashboardUpdater.dismissAlert()">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+        `;
+    },
+
+    // 알림 끄기 처리
+    dismissAlert: function () {
+        this.dismissedAlertSession = this.selectedSessionId;
+        console.log("Alert dismissed for session:", this.dismissedAlertSession);
     },
 
     updateData: async function ({ forceChartUpdate = false } = {}) {
         const sessionId = this.selectedSessionId;
 
-        const stats = await ApiClient.getStats(sessionId);
-        if (stats) {
-            // Update Cards (Real-time)
-            // Backend sends: total_inspections, normal_count, defect_items, total_defects, defect_rate
-            document.getElementById("total-count").innerText = stats.total_inspections || 0;
-            document.getElementById("normal-count").innerText = stats.normal_count || 0;
-            document.getElementById("defect-count").innerText = stats.defect_items || 0;
+        // 대시보드 메인 카드 업데이트
+        if (document.getElementById("total-count")) {
+            const stats = await ApiClient.getStats(sessionId);
+            if (stats) {
+                document.getElementById("total-count").innerText = stats.total_inspections || 0;
+                document.getElementById("normal-count").innerText = stats.normal_count || 0;
+                document.getElementById("defect-count").innerText = stats.defect_items || 0;
+                this.updateSessionChart();
+            }
+        }
 
-            // Format defect rate logic removed as requested by user (reverted to Model Used)
-            // const rate = stats.defect_rate !== undefined ? stats.defect_rate.toFixed(2) : "0.00";
-            // document.getElementById("defect-rate").innerText = `${rate}%`;
-
-            // Update Session Trends Chart
-            this.updateSessionChart();
+        // Health 페이지인 경우 상세 지표 업데이트
+        if (this.isHealthPage) {
+            this.updateHealthMetrics(sessionId);
         }
 
         const defects = await ApiClient.getDefects(sessionId);
-        if (defects) {
+        if (defects && this.charts.types) {
             this.updateTypesChart(defects);
         }
 
         // Always fetch latest logs (세션별 필터링)
-        const latest = await ApiClient.getLatest(50, sessionId);  // 더 많이 가져와서 defect만 필터링
-        if (latest) {
-            // defect만 필터링
+        const latest = await ApiClient.getLatest(50, sessionId);
+        if (latest && this.charts.confidence) {
             const defectsOnly = latest.filter(item => item.result === 'defect');
-            this.updateConfidenceChart(defectsOnly.slice(0, 10));  // 최대 10개
+            this.updateConfidenceChart(defectsOnly.slice(0, 10));
         }
+    },
+
+    // Health 페이지 전용 업데이트 로직
+    updateHealthMetrics: async function (sessionId) {
+        const data = await ApiClient.getHealth(sessionId);
+        if (!data) return;
+
+        // Health 데이터 캐시 (배너와 일관성 유지)
+        this.cachedHealthData = data;
+
+        // 상단 배지 및 상태
+        const statusBadge = document.getElementById("system-status-badge");
+        if (statusBadge) {
+            statusBadge.innerText = data.status.toUpperCase();
+            statusBadge.className = `badge badge-${data.status === 'healthy' ? 'success' : (data.status === 'warning' ? 'warning' : 'danger')}`;
+        }
+
+        const timestamp = document.getElementById("health-timestamp");
+        if (timestamp) timestamp.innerText = `Last updated: ${new Date(data.timestamp).toLocaleTimeString()}`;
+
+        // 수치 업데이트
+        if (document.getElementById("h-defect-rate")) document.getElementById("h-defect-rate").innerText = `${data.defect_rate.toFixed(1)}%`;
+        if (document.getElementById("h-avg-confidence")) {
+            const conf = data.defect_confidence_stats ? data.defect_confidence_stats.avg_confidence : 0;
+            document.getElementById("h-avg-confidence").innerText = conf.toFixed(2);
+        }
+        if (document.getElementById("h-low-conf-ratio")) document.getElementById("h-low-conf-ratio").innerText = `${data.low_confidence_ratio.toFixed(1)}%`;
+        if (document.getElementById("h-avg-defects")) document.getElementById("h-avg-defects").innerText = data.avg_defects_per_item.toFixed(1);
+
+        // 알림 테이블
+        const tableBody = document.getElementById("alerts-table-body");
+        if (tableBody) {
+            if (data.alerts.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="3" class="text-center">No active alerts</td></tr>';
+            } else {
+                tableBody.innerHTML = data.alerts.map(alert => `
+                    <tr>
+                        <td><span class="badge badge-${alert.level === 'critical' ? 'danger' : 'warning'}">${alert.level.toUpperCase()}</span></td>
+                        <td>${alert.message}</td>
+                        <td>${alert.action}</td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        // 결함 타입 신뢰도 리스트
+        const typeList = document.getElementById("defect-type-list");
+        if (typeList && data.defect_type_stats) {
+            typeList.innerHTML = data.defect_type_stats.map(type => `
+                <li class="mb-2">
+                    <div class="d-flex justify-content-between">
+                        <span>${type.defect_type} (${type.count}건)</span>
+                        <span class="text-primary font-weight-bold">${(type.avg_confidence * 100).toFixed(0)}%</span>
+                    </div>
+                    <div class="progress" style="height: 8px;">
+                        <div class="progress-bar" role="progressbar" style="width: ${type.avg_confidence * 100}%"></div>
+                    </div>
+                </li>
+            `).join('');
+        }
+
+        // 신뢰도 분포 차트 업데이트
+        if (this.charts.confDist && data.defect_confidence_stats) {
+            const dist = data.defect_confidence_stats.distribution;
+            this.charts.confDist.data.datasets[0].data = [dist.high, dist.medium, dist.low, dist.very_low];
+            this.charts.confDist.update();
+        }
+
+        // 결함 타입 분포 차트 업데이트
+        if (this.charts.typeDist && data.defect_type_stats) {
+            const labels = data.defect_type_stats.map(t => t.defect_type);
+            const counts = data.defect_type_stats.map(t => t.count);
+            this.charts.typeDist.data.labels = labels;
+            this.charts.typeDist.data.datasets[0].data = counts;
+            this.charts.typeDist.update();
+        }
+
+        // Health 데이터 로드 후 배너 업데이트 (일관성 보장)
+        this.updateAlertBanner();
     },
 
     // Session Statistics Chart Update
     updateSessionChart: async function () {
+        // Health 페이지에는 trends 차트가 없으므로 체크
+        if (!this.charts.trends) return;
+
         try {
             // 최근 10개 세션 가져오기
             const sessionsData = await ApiClient.getSessions();

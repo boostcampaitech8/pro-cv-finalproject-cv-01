@@ -704,6 +704,11 @@ def generate_alerts(
             action="공정 개선 검토 권장"
         ))
 
+    # 심각도 순으로 정렬 (critical → warning)
+    # 프론트엔드에서 alerts[0]을 배너에 표시하므로 가장 심각한 알림이 먼저 와야 함
+    severity_order = {"critical": 0, "warning": 1}
+    alerts.sort(key=lambda x: severity_order.get(x.level, 2))
+
     return alerts
 
 
@@ -752,6 +757,14 @@ async def get_health(session_id: Optional[str]) -> HealthResponse:
     # 시스템 상태 결정
     status = determine_system_status(alerts)
 
+    # 저신뢰도 비율 계산
+    low_ratio = 0.0
+    if defect_confidence_stats:
+        dist = defect_confidence_stats.distribution
+        total_detections = dist.high + dist.medium + dist.low + dist.very_low
+        if total_detections > 0:
+            low_ratio = ((dist.low + dist.very_low) / total_detections) * 100
+
     return HealthResponse(
         status=status,
         timestamp=datetime.now().isoformat(),
@@ -762,6 +775,7 @@ async def get_health(session_id: Optional[str]) -> HealthResponse:
         defect_rate=stats.defect_rate,
         total_defects=stats.total_defects,
         avg_defects_per_item=stats.avg_defects_per_item,
+        low_confidence_ratio=round(low_ratio, 2),
         defect_confidence_stats=defect_confidence_stats,
         defect_type_stats=defect_type_stats,
         alerts=alerts

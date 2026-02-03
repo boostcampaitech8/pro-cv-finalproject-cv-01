@@ -1,0 +1,262 @@
+<!--
+=========================================================
+* Paper Dashboard 2 - v2.0.1
+=========================================================
+-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <link rel="apple-touch-icon" sizes="76x76" href="../assets/img/apple-icon.png">
+    <link rel="icon" type="image/png" href="../assets/img/favicon.png">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+    <title>
+        System Health Monitoring
+    </title>
+    <meta content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, shrink-to-fit=no'
+        name='viewport' />
+    <!--     Fonts and icons     -->
+    <link href="https://fonts.googleapis.com/css?family=Montserrat:400,700,200" rel="stylesheet" />
+    <link href="https://maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css" rel="stylesheet">
+    <!-- CSS Files -->
+    <link href="../assets/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="../assets/css/paper-dashboard.css?v=2.0.1" rel="stylesheet" />
+</head>
+
+<body class="">
+    <div class="wrapper ">
+        <div class="sidebar" data-color="white" data-active-color="danger">
+            <div class="logo">
+                <a href="./dashboard.html" class="simple-text logo-mini">
+                    <div class="logo-image-small">
+                        <img src="../assets/img/logo-small.png">
+                    </div>
+                </a>
+                <a href="./dashboard.html" class="simple-text logo-normal">
+                    Merby
+                </a>
+            </div>
+            <div class="sidebar-wrapper">
+                <ul class="nav">
+                    <li>
+                        <a href="./dashboard.html">
+                            <i class="nc-icon nc-layout-11"></i>
+                            <p>Dashboard</p>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="./icons.html">
+                            <i class="nc-icon nc-zoom-split"></i>
+                            <p>Defect Logs</p>
+                        </a>
+                    </li>
+
+                    <li class="active">
+                        <a href="./health.html">
+                            <i class="nc-icon nc-favourite-28"></i>
+                            <p>System Health</p>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <div class="main-panel">
+            <!-- Navbar -->
+            <nav class="navbar navbar-expand-lg navbar-absolute fixed-top navbar-transparent">
+                <div class="container-fluid">
+                    <div class="navbar-wrapper">
+                        <div class="navbar-toggle">
+                            <button type="button" class="navbar-toggler">
+                                <span class="navbar-toggler-bar bar1"></span>
+                                <span class="navbar-toggler-bar bar2"></span>
+                                <span class="navbar-toggler-bar bar3"></span>
+                            </button>
+                        </div>
+                        <a class="navbar-brand" href="javascript:;">System Health Monitoring</a>
+                    </div>
+                    <div class="collapse navbar-collapse justify-content-end" id="navigation">
+                        <ul class="navbar-nav">
+                            <li class="nav-item">
+                                <div class="form-group mb-0" style="margin-top: 8px;">
+                                    <select class="form-control" id="session-select"
+                                        style="width: 250px; height: 38px;">
+                                        <option value="">All Sessions (전체)</option>
+                                    </select>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </nav>
+            <!-- End Navbar -->
+
+            <div class="content">
+                <!-- Global Alert Banner Area -->
+                <div id="alert-banner-container" style="margin-bottom: 20px;"></div>
+
+                <!-- Health Status Header -->
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card card-tasks">
+                            <div class="card-header ">
+                                <h4 class="card-title">System Health Status: <span id="system-status-badge"
+                                        class="badge badge-success">OK</span></h4>
+                                <p class="card-category" id="health-timestamp">Last updated: -</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Metric Summary Cards -->
+                <div class="row">
+                    <div class="col-lg-3 col-md-6">
+                        <div class="card card-stats">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-5 col-md-4">
+                                        <div class="icon-big text-center icon-warning"><i
+                                                class="nc-icon nc-chart-bar-32 text-warning"></i></div>
+                                    </div>
+                                    <div class="col-7 col-md-8">
+                                        <div class="numbers">
+                                            <p class="card-category">Defect Rate</p>
+                                            <p class="card-title" id="h-defect-rate">0%</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-md-6">
+                        <div class="card card-stats">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-5 col-md-4">
+                                        <div class="icon-big text-center icon-warning"><i
+                                                class="nc-icon nc-bulb-63 text-success"></i></div>
+                                    </div>
+                                    <div class="col-7 col-md-8">
+                                        <div class="numbers">
+                                            <p class="card-category">Avg Confidence</p>
+                                            <p class="card-title" id="h-avg-confidence">0.00</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-md-6">
+                        <div class="card card-stats">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-5 col-md-4">
+                                        <div class="icon-big text-center icon-warning"><i
+                                                class="nc-icon nc-alert-circle-i text-danger"></i></div>
+                                    </div>
+                                    <div class="col-7 col-md-8">
+                                        <div class="numbers">
+                                            <p class="card-category">Low Conf. Ratio</p>
+                                            <p class="card-title" id="h-low-conf-ratio">0%</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-md-6">
+                        <div class="card card-stats">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-5 col-md-4">
+                                        <div class="icon-big text-center icon-warning"><i
+                                                class="nc-icon nc-tile-56 text-info"></i></div>
+                                    </div>
+                                    <div class="col-7 col-md-8">
+                                        <div class="numbers">
+                                            <p class="card-category">Defects/Item</p>
+                                            <p class="card-title" id="h-avg-defects">0.0</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Alert History & Details -->
+                <div class="row">
+                    <div class="col-md-7">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title">Active Alerts & Recommendations</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive" style="max-height: 400px;">
+                                    <table class="table">
+                                        <thead class="text-primary">
+                                            <th>Level</th>
+                                            <th>Message</th>
+                                            <th>Action</th>
+                                        </thead>
+                                        <tbody id="alerts-table-body">
+                                            <tr>
+                                                <td colspan="3" class="text-center">No active alerts</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-5">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title">Defect Type Confidence</h5>
+                            </div>
+                            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                                <ul class="list-unstyled" id="defect-type-list">
+                                    <li class="text-center">Loading data...</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title">Confidence Distribution</h5>
+                                <p class="card-category">Defects categorized by reliability</p>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="chartConfidenceDist"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title">Defect Type Distribution</h5>
+                                <p class="card-category">Total detections per category</p>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="chartDefectTypesDist"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS Files -->
+    <script src="../assets/js/core/jquery.min.js"></script>
+    <script src="../assets/js/core/bootstrap.min.js"></script>
+    <script src="../assets/js/plugins/chartjs.min.js"></script>
+    <script src="../assets/js/api-client.js"></script>
+</body>
+
+</html>
