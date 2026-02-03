@@ -33,8 +33,10 @@
 | Sessions | GET | `/sessions/{session_id}` | 특정 세션 조회 |
 | Monitoring | GET | `/monitoring/health` | 시스템 건강 상태 |
 | Monitoring | GET | `/monitoring/alerts` | 알림 조회 (경량) |
-| Feedback | POST | `/feedback/` | 피드백 생성 |
-| Feedback | GET | `/feedback/stats` | 피드백 통계 |
+| Feedback | POST | `/feedback/bulk` | 다중 bbox 피드백 + 자동 재라벨링 |
+| Feedback | GET | `/feedback/stats` | 피드백 통계 (bbox 기반 정확도) |
+| Feedback | GET | `/feedback/queue` | 라벨링 대기열 조회 |
+| Feedback | GET | `/feedback/export` | 데이터셋 내보내기 정보 |
 | Images | GET | `/raw/{file_path}` | 이미지 조회 (S3 리다이렉트) |
 
 ---
@@ -364,78 +366,188 @@ CREATE TABLE inspection_logs (
 
 ### 3.8 피드백 시스템 (Feedback)
 
-품질 관리자가 검사 결과를 검토하고 피드백을 제공하는 API입니다.
+품질 관리자가 검사 결과를 검토하고 피드백을 제공하는 MLOps 시스템입니다. 피드백 데이터는 자동으로 S3에 저장되어 모델 재학습에 활용됩니다.
 
-#### 3.8.1 피드백 생성
+#### 3.8.1 다중 bbox 피드백 + 자동 재라벨링
 
-- **Endpoint:** `POST /feedback/`
-- **Request Body (`FeedbackRequest`):**
+1개 PCB(log_id)에 대해 여러 bbox 피드백을 제출하고, 즉시 S3 refined/ 폴더에 학습 데이터를 저장합니다.
+
+- **Endpoint:** `POST /feedback/bulk`
+- **Request Body (`BulkFeedbackRequest`):**
     ```json
     {
-      "log_id": 42,                          // 검사 로그 ID (필수)
-      "feedback_type": "false_positive",     // 피드백 종류 (필수)
-      "correct_label": "scratch",            // label_correction 시 필수
-      "comment": "정상 PCB인데 먼지로 인해 오탐됨",
-      "created_by": "manager_kim"
+      "log_id": 42,
+      "image_width": 1200,
+      "image_height": 760,
+      "feedbacks": [
+        {
+          "target_bbox": [50, 60, 70, 80],
+          "feedback_type": "false_positive",
+          "comment": "먼지 오탐"
+        },
+        {
+          "target_bbox": [100, 110, 120, 130],
+          "feedback_type": "tp_wrong_class",
+          "correct_label": "scratch",
+          "comment": "hole이 아니라 scratch"
+        }
+      ],
+      "false_negative_memo": "좌측 하단 scratch 누락",
+      "created_by": "qa_team"
     }
     ```
 
-**피드백 종류:**
+**처리 플로우:**
+1. 원본 detections 조회
+2. 각 bbox에 대해 피드백 매칭 (target_bbox 좌표 비교)
+3. 최종 라벨 생성:
+   - 피드백 없음 → 원본 유지 (암묵적 TP)
+   - `false_positive` → 라벨에서 삭제
+   - `tp_wrong_class` → 클래스 수정
+4. S3 refined/ 폴더에 이미지 복사 + YOLO 라벨 저장
+5. DB에 피드백 저장 + `is_verified = true` 설정
+6. FALSE_NEGATIVE가 있으면 needs_labeling/ 폴더에 복사
 
-| 타입 | 설명 | correct_label |
-|------|------|---------------|
-| `false_positive` | 정상인데 불량으로 오탐 | 불필요 |
-| `false_negative` | 불량인데 정상으로 통과 | 불필요 |
-| `label_correction` | 결함은 맞지만 종류가 틀림 | 필수 |
-
-**correct_label 허용값:** `scratch`, `hole`, `contamination`, `crack`, `normal`
-
-- **Response Body (`FeedbackResponse`):** (201 Created)
+- **Response Body (`BulkFeedbackResponse`):** (201 Created)
     ```json
     {
-      "id": 1,
+      "status": "ok",
       "log_id": 42,
-      "feedback_type": "false_positive",
-      "correct_label": null,
-      "comment": "정상 PCB인데 먼지로 인해 오탐됨",
-      "created_at": "2026-01-30T10:30:45",
-      "created_by": "manager_kim",
-      "status": "ok"
+      "feedback_ids": [1, 2, 3],
+      "saved_to_s3": true,
+      "refined_path": "refined/20260130/42_pcb001.jpg",
+      "final_label_count": 3,
+      "false_negative_pending": true,
+      "created_at": "2026-01-30T10:30:45"
     }
     ```
 
 **에러 응답:**
+- 400 Bad Request: image_path 없음
 - 404 Not Found: 존재하지 않는 log_id
-- 422 Validation Error: correct_label 누락/잘못된 값
+- 500 Internal Server Error: S3 저장 실패
 
-#### 3.8.2 피드백 통계 조회
+---
+
+#### 3.8.2 피드백 통계 조회 (bbox 기반 정확도 분석)
+
+MLOps 모니터링용 정확도 분석 API입니다. 검증된 defect의 bbox별 정확도를 계산합니다.
 
 - **Endpoint:** `GET /feedback/stats`
+- **Query Parameters:**
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---------|------|------|------|
+| `session_id` | string | X | 세션 필터 (생략: 전체, `latest`: 활성 세션, 숫자: 특정 세션) |
+
+- **사용 예시:**
+    ```bash
+    # 전체 통계
+    GET /feedback/stats
+
+    # 최신 활성 세션만
+    GET /feedback/stats?session_id=latest
+
+    # 특정 세션
+    GET /feedback/stats?session_id=1
+    ```
+
 - **Response Body (`FeedbackStatsResponse`):**
     ```json
     {
-      "total_feedback": 150,
-      "by_type": {
-        "false_positive": 80,
-        "false_negative": 45,
-        "label_correction": 25
+      "image_stats": {
+        "total": 100,
+        "by_result": {"defect": 15, "normal": 85},
+        "verified": 50,
+        "unverified": 50,
+        "verification_rate": 50.0,
+        "verified_by_result": {"defect": 10, "normal": 40}
       },
-      "by_defect_type": [
-        {
-          "defect_type": "scratch",
-          "false_positive": 50,
-          "false_negative": 20,
-          "label_correction": 10
-        },
-        {
-          "defect_type": "hole",
-          "false_positive": 30,
-          "false_negative": 25,
-          "label_correction": 15
+      "bbox_stats": {
+        "total": 25,
+        "correct": 20,
+        "false_positive": 3,
+        "wrong_class": 2,
+        "accuracy_rate": 80.0,
+        "by_defect_type": {
+          "scratch": {"total": 15, "correct": 12, "fp": 2, "wrong": 1, "accuracy": 80.0},
+          "hole": {"total": 10, "correct": 8, "fp": 1, "wrong": 1, "accuracy": 80.0}
         }
-      ],
-      "recent_feedback_count": 12,
-      "period_description": "최근 24시간"
+      },
+      "feedback_stats": {
+        "total": 8,
+        "false_positive": 3,
+        "tp_wrong_class": 2,
+        "false_negative": 3
+      },
+      "class_confusion": [
+        {"from_class": "hole", "to_class": "scratch", "count": 2}
+      ]
+    }
+    ```
+
+**응답 필드 설명:**
+
+| 필드 | 설명 |
+|------|------|
+| `image_stats` | 이미지 단위 통계 (전체, 검증률) |
+| `bbox_stats` | bbox 단위 정확도 (검증된 defect만, **핵심 지표**) |
+| `feedback_stats` | 피드백 타입별 집계 |
+| `class_confusion` | 클래스 혼동 패턴 (어떤 클래스를 어떤 클래스로 잘못 예측) |
+
+**에러 응답:**
+- 404 Not Found: 존재하지 않는 session_id
+
+---
+
+#### 3.8.3 라벨링 대기열 조회
+
+처리되지 않은 피드백 목록을 반환합니다. 라벨링 도구에서 사용합니다.
+
+- **Endpoint:** `GET /feedback/queue`
+- **Query Parameters:**
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---------|------|------|------|
+| `session_id` | string | X | 세션 필터 (생략: 전체, `latest`: 활성 세션, 숫자: 특정 세션) |
+
+- **Response Body (`List[FeedbackQueueResponse]`):**
+    ```json
+    [
+      {
+        "feedback_id": 1,
+        "log_id": 42,
+        "image_url": "https://s3...presigned-url...",
+        "feedback_type": "false_positive",
+        "comment": "먼지 오탐",
+        "created_at": "2026-01-30T10:30:45",
+        "original_detections": [
+          {"defect_type": "scratch", "confidence": 0.95, "bbox": [10, 20, 100, 120]}
+        ],
+        "target_bbox": [10, 20, 100, 120]
+      }
+    ]
+    ```
+
+---
+
+#### 3.8.4 데이터셋 내보내기 정보
+
+MLOps 파이프라인 연동용 데이터셋 정보를 반환합니다.
+
+- **Endpoint:** `GET /feedback/export`
+- **Response Body:**
+    ```json
+    {
+      "status": "ready",
+      "dataset_info": {
+        "s3_uri": "s3://pcb-data-storage/refined/",
+        "bucket": "pcb-data-storage",
+        "prefix": "refined/",
+        "image_count": 150
+      },
+      "command_guide": "aws s3 sync s3://pcb-data-storage/refined/ ./dataset/refined/",
+      "message": "Use the s3_uri to sync your training data."
     }
     ```
 
@@ -479,11 +591,21 @@ S3에 저장된 결함 이미지를 Presigned URL로 조회합니다.
 |------|------|------|
 | id | INTEGER | PRIMARY KEY |
 | log_id | INTEGER | 검사 로그 ID (FK) |
-| feedback_type | TEXT | 피드백 종류 |
-| correct_label | TEXT | 올바른 라벨 (nullable) |
+| feedback_type | TEXT | 피드백 종류 (false_positive, false_negative, tp_wrong_class) |
+| correct_label | TEXT | 올바른 라벨 (tp_wrong_class 시 사용) |
+| target_bbox | TEXT | 대상 bbox JSON ([x1, y1, x2, y2]) |
 | comment | TEXT | 추가 설명 (nullable) |
 | created_at | TEXT | 생성 시각 (ISO 8601) |
 | created_by | TEXT | 작성자 (nullable) |
+| status | TEXT | 상태 (pending, resolved) DEFAULT 'pending' |
+
+### 4.4 inspection_logs 추가 컬럼 (검증 관련)
+
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| is_verified | BOOLEAN | 검증 완료 여부 DEFAULT FALSE |
+| verified_at | TEXT | 검증 완료 시각 (ISO 8601) |
+| verified_by | TEXT | 검증자 (nullable) |
 
 ---
 

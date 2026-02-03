@@ -61,3 +61,23 @@ SLACK_ALERT_ENABLED = os.getenv("SLACK_ALERT_ENABLED", "false").lower() == "true
 # Defect Type Settings
 ALLOWED_DEFECT_TYPES = {"scratch", "hole", "contamination", "crack"}
 ALLOWED_FEEDBACK_LABELS = ALLOWED_DEFECT_TYPES | {"normal"}  # 피드백에서는 normal도 허용
+
+# YOLO 클래스 ID 매핑 (학습 데이터 생성용)
+CLASS_ID_MAP = {
+    "scratch": 0,
+    "hole": 1,
+    "contamination": 2,
+    "crack": 3
+}
+
+def get_class_id(defect_type: str) -> int:
+    """
+    결함 타입을 YOLO 클래스 ID로 변환
+
+    Args:
+        defect_type: 결함 종류 (scratch, hole 등)
+
+    Returns:
+        클래스 ID (0-based)
+    """
+    return CLASS_ID_MAP.get(defect_type, 0)

@@ -67,6 +67,7 @@ async def init_db():
                 created_at TEXT,
                 created_by TEXT,
                 status TEXT DEFAULT 'pending', -- pending, resolved
+                target_bbox TEXT,
                 FOREIGN KEY (log_id) REFERENCES inspection_logs (id)
             )
         """)
@@ -81,6 +82,29 @@ async def init_db():
         await db.execute(
             "CREATE INDEX IF NOT EXISTS idx_feedback_created_at ON feedback(created_at)"
         )
+
+        # 기존 테이블에 target_bbox 컬럼이 없으면 추가 (마이그레이션)
+        try:
+            await db.execute("ALTER TABLE feedback ADD COLUMN target_bbox TEXT")
+        except Exception:
+            # 컬럼이 이미 존재하면 무시
+            pass
+
+        # 검증 완료 표시 컬럼 추가 (마이그레이션)
+        try:
+            await db.execute("ALTER TABLE inspection_logs ADD COLUMN is_verified BOOLEAN DEFAULT FALSE")
+        except Exception:
+            pass
+
+        try:
+            await db.execute("ALTER TABLE inspection_logs ADD COLUMN verified_at TEXT")
+        except Exception:
+            pass
+
+        try:
+            await db.execute("ALTER TABLE inspection_logs ADD COLUMN verified_by TEXT")
+        except Exception:
+            pass
 
         await db.commit()
 
@@ -772,17 +796,19 @@ async def add_feedback(
     feedback_type: str,
     correct_label: Optional[str] = None,
     comment: Optional[str] = None,
-    created_by: Optional[str] = None
+    created_by: Optional[str] = None,
+    target_bbox: Optional[List[int]] = None
 ) -> Dict:
     """
     피드백 저장
 
     Args:
         log_id: 검사 로그 ID
-        feedback_type: 피드백 종류 (false_positive, false_negative, label_correction)
-        correct_label: 올바른 라벨 (label_correction 시 필수)
+        feedback_type: 피드백 종류 (false_positive, false_negative, tp_wrong_class)
+        correct_label: 올바른 라벨 (tp_wrong_class 시 필수)
         comment: 추가 설명
         created_by: 작성자
+        target_bbox: 대상 bbox [x1, y1, x2, y2] (false_positive, tp_wrong_class 시 필수)
 
     Returns:
         저장된 피드백 데이터
@@ -794,14 +820,17 @@ async def add_feedback(
     if not await log_exists(log_id):
         raise HTTPException(status_code=404, detail=f"Inspection log {log_id} not found")
 
+    # target_bbox를 JSON 문자열로 직렬화
+    target_bbox_json = json.dumps(target_bbox) if target_bbox else None
+
     # 피드백 저장
     created_at = datetime.now().isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
             """INSERT INTO feedback
-            (log_id, feedback_type, correct_label, comment, created_at, created_by)
-            VALUES (?, ?, ?, ?, ?, ?)""",
-            (log_id, feedback_type, correct_label, comment, created_at, created_by)
+            (log_id, feedback_type, correct_label, comment, created_at, created_by, target_bbox)
+            VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (log_id, feedback_type, correct_label, comment, created_at, created_by, target_bbox_json)
         )
         await db.commit()
         return {
@@ -812,30 +841,40 @@ async def add_feedback(
             "comment": comment,
             "created_at": created_at,
             "created_by": created_by,
+            "target_bbox": target_bbox
         }
 
-async def get_feedback_queue() -> List[Dict]:
+async def get_feedback_queue(session_id: Optional[int] = None) -> List[Dict]:
     """
     처리되지 않은(resolved=0) 피드백 목록 조회
     사용자가 신고한 건들을 라벨링 툴에 보여주기 위함
+
+    Args:
+        session_id: 세션 필터 (None이면 전체, 숫자면 해당 세션만)
     """
     query = """
-    SELECT 
+    SELECT
         f.id as feedback_id,
         f.log_id,
         f.feedback_type,
         f.comment,
         f.created_at,
+        f.target_bbox,
         l.image_path,   -- S3 키 (예: raw/...)
         l.detections    -- 원본 AI 예측 결과 (JSON)
     FROM feedback f
     JOIN inspection_logs l ON f.log_id = l.id
-    WHERE f.status != 'resolved' OR f.status IS NULL
-    ORDER BY f.created_at DESC
+    WHERE (f.status != 'resolved' OR f.status IS NULL)
     """
+    params = ()
+    if session_id is not None:
+        query += " AND l.session_id = ?"
+        params = (session_id,)
+    query += " ORDER BY f.created_at DESC"
+
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        cursor = await db.execute(query)
+        cursor = await db.execute(query, params)
         rows = await cursor.fetchall()
         return [dict(row) for row in rows]
 
@@ -870,101 +909,369 @@ async def get_feedback_by_log_id(log_id: int) -> List[Dict]:
         return [dict(row) for row in await cursor.fetchall()]
 
 
-async def get_feedback_stats() -> Dict:
+def bbox_equals(bbox1: List, bbox2: List, tolerance: int = 2) -> bool:
     """
-    피드백 통계 집계
+    두 bbox가 동일한지 확인 (오차 허용)
+
+    Args:
+        bbox1: [x1, y1, x2, y2]
+        bbox2: [x1, y1, x2, y2]
+        tolerance: 허용 오차 (픽셀)
+
+    Returns:
+        동일 여부
+    """
+    if not bbox1 or not bbox2:
+        return False
+    if len(bbox1) != 4 or len(bbox2) != 4:
+        return False
+    return all(abs(a - b) <= tolerance for a, b in zip(bbox1, bbox2))
+
+
+async def get_feedback_stats(session_id: Optional[int] = None) -> Dict:
+    """
+    피드백 통계 조회 (bbox 기반 정확도 분석)
+
+    Args:
+        session_id: 세션 필터 (None이면 전체, 숫자면 해당 세션만)
+
+    새로운 응답 구조:
+    - image_stats: 전체 이미지 + 검증 진행률
+    - bbox_stats: 검증된 defect의 bbox별 정확도 (is_verified=true만)
+    - feedback_stats: 피드백 타입별 집계
+    - class_confusion: 클래스 혼동 패턴 (is_verified=true, FN 제외)
 
     Returns:
         {
-            "total_feedback": int,
-            "by_type": {"false_positive": int, "false_negative": int, "label_correction": int},
-            "by_defect_type": [
-                {
-                    "defect_type": str,
-                    "false_positive": int,
-                    "false_negative": int,
-                    "label_correction": int
-                }
-            ],
-            "recent_feedback_count": int
+            "image_stats": {...},
+            "bbox_stats": {...},
+            "feedback_stats": {...},
+            "class_confusion": [...]
         }
     """
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
 
-        # 1. 전체 피드백 개수
-        cursor = await db.execute("SELECT COUNT(*) as cnt FROM feedback")
+        # 세션 필터 조건
+        session_filter = " WHERE session_id = ?" if session_id is not None else ""
+        session_params = (session_id,) if session_id is not None else ()
+
+        # ===== 1. image_stats 집계 (전체 이미지) =====
+        cursor = await db.execute(f"""
+            SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN result = 'defect' THEN 1 ELSE 0 END) as defect_count,
+                SUM(CASE WHEN result = 'normal' THEN 1 ELSE 0 END) as normal_count,
+                SUM(CASE WHEN is_verified = 1 THEN 1 ELSE 0 END) as verified_count,
+                SUM(CASE WHEN is_verified = 1 AND result = 'defect' THEN 1 ELSE 0 END) as verified_defect,
+                SUM(CASE WHEN is_verified = 1 AND result = 'normal' THEN 1 ELSE 0 END) as verified_normal
+            FROM inspection_logs
+            {session_filter}
+        """, session_params)
         row = await cursor.fetchone()
-        total_feedback = row["cnt"]
 
-        # 2. 피드백 종류별 집계
-        cursor = await db.execute("""
-            SELECT feedback_type, COUNT(*) as cnt
-            FROM feedback
-            GROUP BY feedback_type
-        """)
-        rows = await cursor.fetchall()
+        total = row["total"] or 0
+        defect_count = row["defect_count"] or 0
+        normal_count = row["normal_count"] or 0
+        verified_count = row["verified_count"] or 0
+        verified_defect = row["verified_defect"] or 0
+        verified_normal = row["verified_normal"] or 0
 
-        by_type = {
-            "false_positive": 0,
-            "false_negative": 0,
-            "label_correction": 0
+        image_stats = {
+            "total": total,
+            "by_result": {"defect": defect_count, "normal": normal_count},
+            "verified": verified_count,
+            "unverified": total - verified_count,
+            "verification_rate": round(verified_count / total * 100, 1) if total > 0 else 0.0,
+            "verified_by_result": {"defect": verified_defect, "normal": verified_normal}
         }
-        for row in rows:
-            by_type[row["feedback_type"]] = row["cnt"]
 
-        # 3. 결함 타입별 × 피드백 종류별 교차 집계
-        # inspection_logs와 JOIN, detections JSON 파싱
-        cursor = await db.execute("""
-            SELECT il.detections, f.feedback_type
-            FROM feedback f
-            INNER JOIN inspection_logs il ON f.log_id = il.id
-            WHERE il.result = 'defect'
-        """)
-        rows = await cursor.fetchall()
+        # ===== 2. bbox_stats 집계 (검증된 defect만) =====
+        # 검증된 defect 로그 조회 (세션 필터 적용)
+        verified_query = "SELECT id, detections FROM inspection_logs WHERE result = 'defect' AND is_verified = 1"
+        if session_id is not None:
+            verified_query += " AND session_id = ?"
+        cursor = await db.execute(verified_query, session_params)
+        verified_defect_logs = await cursor.fetchall()
 
-        # 결함 타입별 집계
-        defect_type_stats = {}
+        # 전체 피드백 조회 (target_bbox 포함, 세션 필터 시 JOIN)
+        if session_id is not None:
+            cursor = await db.execute("""
+                SELECT f.id, f.log_id, f.feedback_type, f.target_bbox, f.correct_label
+                FROM feedback f
+                JOIN inspection_logs l ON f.log_id = l.id
+                WHERE l.session_id = ?
+            """, (session_id,))
+        else:
+            cursor = await db.execute("""
+                SELECT id, log_id, feedback_type, target_bbox, correct_label
+                FROM feedback
+            """)
+        all_feedbacks = await cursor.fetchall()
 
-        for row in rows:
-            if row["detections"]:
+        # 피드백을 log_id별로 그룹화
+        feedbacks_by_log = {}
+        for fb in all_feedbacks:
+            log_id = fb["log_id"]
+            if log_id not in feedbacks_by_log:
+                feedbacks_by_log[log_id] = []
+
+            target_bbox = None
+            if fb["target_bbox"]:
                 try:
-                    detections = json.loads(row["detections"])
-                    for det in detections:
-                        defect_type = det.get("defect_type", "unknown")
-                        feedback_type = row["feedback_type"]
-
-                        if defect_type not in defect_type_stats:
-                            defect_type_stats[defect_type] = {
-                                "defect_type": defect_type,
-                                "false_positive": 0,
-                                "false_negative": 0,
-                                "label_correction": 0
-                            }
-
-                        defect_type_stats[defect_type][feedback_type] += 1
+                    target_bbox = json.loads(fb["target_bbox"])
                 except:
                     pass
 
-        # 리스트로 변환 (개수 내림차순 정렬)
-        by_defect_type = list(defect_type_stats.values())
-        by_defect_type.sort(
-            key=lambda x: x["false_positive"] + x["false_negative"] + x["label_correction"],
-            reverse=True
-        )
+            feedbacks_by_log[log_id].append({
+                "id": fb["id"],
+                "feedback_type": fb["feedback_type"],
+                "target_bbox": target_bbox,
+                "correct_label": fb["correct_label"]
+            })
 
-        # 4. 최근 24시간 피드백 개수
-        cursor = await db.execute("""
-            SELECT COUNT(*) as cnt
-            FROM feedback
-            WHERE created_at >= datetime('now', '-1 day')
-        """)
-        row = await cursor.fetchone()
-        recent_feedback_count = row["cnt"]
+        # bbox별 정답/오답 판정
+        bbox_stats = {
+            "total": 0,
+            "correct": 0,
+            "false_positive": 0,
+            "wrong_class": 0,
+            "by_defect_type": {}
+        }
+
+        # class_confusion 집계용 (from_class -> to_class -> count)
+        confusion_counter = {}
+
+        for log in verified_defect_logs:
+            log_id = log["id"]
+            detections = []
+            if log["detections"]:
+                try:
+                    detections = json.loads(log["detections"])
+                except:
+                    pass
+
+            log_feedbacks = feedbacks_by_log.get(log_id, [])
+
+            for det in detections:
+                det_bbox = det.get("bbox")
+                defect_type = det.get("defect_type", "unknown")
+
+                bbox_stats["total"] += 1
+
+                # 결함 타입별 통계 초기화
+                if defect_type not in bbox_stats["by_defect_type"]:
+                    bbox_stats["by_defect_type"][defect_type] = {
+                        "total": 0, "correct": 0, "fp": 0, "wrong": 0
+                    }
+                bbox_stats["by_defect_type"][defect_type]["total"] += 1
+
+                # 해당 bbox에 대한 피드백 찾기
+                feedback = None
+                for fb in log_feedbacks:
+                    fb_bbox = fb.get("target_bbox")
+                    if bbox_equals(det_bbox, fb_bbox):
+                        feedback = fb
+                        break
+
+                if feedback is None:
+                    # 피드백 없음 → 정답 (암묵적 TP)
+                    bbox_stats["correct"] += 1
+                    bbox_stats["by_defect_type"][defect_type]["correct"] += 1
+
+                elif feedback["feedback_type"] == "false_positive":
+                    # 오탐
+                    bbox_stats["false_positive"] += 1
+                    bbox_stats["by_defect_type"][defect_type]["fp"] += 1
+
+                elif feedback["feedback_type"] == "tp_wrong_class":
+                    # 클래스 오류
+                    bbox_stats["wrong_class"] += 1
+                    bbox_stats["by_defect_type"][defect_type]["wrong"] += 1
+
+                    # class_confusion 집계
+                    from_class = defect_type
+                    to_class = feedback.get("correct_label", "unknown")
+                    key = (from_class, to_class)
+                    confusion_counter[key] = confusion_counter.get(key, 0) + 1
+
+        # 정확도 계산
+        if bbox_stats["total"] > 0:
+            bbox_stats["accuracy_rate"] = round(
+                bbox_stats["correct"] / bbox_stats["total"] * 100, 1
+            )
+        else:
+            bbox_stats["accuracy_rate"] = 0.0
+
+        for dt_stats in bbox_stats["by_defect_type"].values():
+            if dt_stats["total"] > 0:
+                dt_stats["accuracy"] = round(
+                    dt_stats["correct"] / dt_stats["total"] * 100, 1
+                )
+            else:
+                dt_stats["accuracy"] = 0.0
+
+        # ===== 3. feedback_stats 집계 (세션 필터 적용) =====
+        if session_id is not None:
+            cursor = await db.execute("""
+                SELECT f.feedback_type, COUNT(*) as cnt
+                FROM feedback f
+                JOIN inspection_logs l ON f.log_id = l.id
+                WHERE l.session_id = ?
+                GROUP BY f.feedback_type
+            """, (session_id,))
+        else:
+            cursor = await db.execute("""
+                SELECT feedback_type, COUNT(*) as cnt
+                FROM feedback
+                GROUP BY feedback_type
+            """)
+        rows = await cursor.fetchall()
+
+        feedback_stats = {
+            "total": 0,
+            "false_positive": 0,
+            "tp_wrong_class": 0,
+            "false_negative": 0
+        }
+        for row in rows:
+            fb_type = row["feedback_type"]
+            cnt = row["cnt"]
+            feedback_stats["total"] += cnt
+            if fb_type in feedback_stats:
+                feedback_stats[fb_type] = cnt
+
+        # ===== 4. class_confusion 리스트 생성 =====
+        class_confusion = [
+            {"from_class": k[0], "to_class": k[1], "count": v}
+            for k, v in confusion_counter.items()
+        ]
+        # count 내림차순 정렬
+        class_confusion.sort(key=lambda x: x["count"], reverse=True)
 
         return {
-            "total_feedback": total_feedback,
-            "by_type": by_type,
-            "by_defect_type": by_defect_type,
-            "recent_feedback_count": recent_feedback_count
+            "image_stats": image_stats,
+            "bbox_stats": bbox_stats,
+            "feedback_stats": feedback_stats,
+            "class_confusion": class_confusion
         }
+
+
+async def add_bulk_feedback(
+    log_id: int,
+    feedbacks: List[Dict],
+    created_by: Optional[str] = None
+) -> Dict:
+    """
+    다중 bbox 피드백 저장 (트랜잭션 원자성 보장)
+
+    Args:
+        log_id: 검사 로그 ID
+        feedbacks: 피드백 목록 (FeedbackItem.model_dump() 결과)
+        created_by: 작성자
+
+    Returns:
+        {
+            "log_id": int,
+            "feedback_ids": List[int],
+            "created_count": int,
+            "created_at": str
+        }
+
+    Raises:
+        HTTPException 404: log_id 없음
+        HTTPException 500: 트랜잭션 실패
+    """
+    # 1. log_id 존재 검증
+    if not await log_exists(log_id):
+        raise HTTPException(status_code=404, detail=f"Inspection log {log_id} not found")
+
+    created_at = datetime.now().isoformat()
+    feedback_ids = []
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        try:
+            # 2. BEGIN TRANSACTION (원자성)
+            await db.execute("BEGIN TRANSACTION")
+
+            # 3. Loop: N개 INSERT
+            for feedback_item in feedbacks:
+                target_bbox_json = json.dumps(feedback_item["target_bbox"]) \
+                    if feedback_item.get("target_bbox") else None
+
+                cursor = await db.execute(
+                    """INSERT INTO feedback
+                    (log_id, feedback_type, correct_label, comment, created_at, created_by, target_bbox)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        log_id,
+                        feedback_item["feedback_type"],
+                        feedback_item.get("correct_label"),
+                        feedback_item.get("comment"),
+                        created_at,
+                        created_by,
+                        target_bbox_json
+                    )
+                )
+                feedback_ids.append(cursor.lastrowid)
+
+            # 4. COMMIT (성공)
+            await db.commit()
+
+            return {
+                "log_id": log_id,
+                "feedback_ids": feedback_ids,
+                "created_count": len(feedback_ids),
+                "created_at": created_at
+            }
+
+        except Exception as e:
+            # 5. ROLLBACK (실패)
+            await db.execute("ROLLBACK")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to create bulk feedback: {str(e)}"
+            )
+
+
+async def mark_as_verified(log_id: int, verified_by: Optional[str] = None) -> None:
+    """
+    검사 로그를 검증 완료 표시
+
+    Args:
+        log_id: 검사 로그 ID
+        verified_by: 검증자 (선택)
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """UPDATE inspection_logs
+               SET is_verified = 1,
+                   verified_at = ?,
+                   verified_by = ?
+               WHERE id = ?""",
+            (datetime.now().isoformat(), verified_by, log_id)
+        )
+        await db.commit()
+
+
+async def get_inspection_log(log_id: int) -> Optional[Dict]:
+    """
+    특정 검사 로그 조회
+
+    Args:
+        log_id: 검사 로그 ID
+
+    Returns:
+        검사 로그 데이터 (detections는 JSON 문자열 그대로)
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT * FROM inspection_logs WHERE id = ?",
+            (log_id,)
+        )
+        row = await cursor.fetchone()
+
+        if row:
+            return dict(row)
+        return None

@@ -192,87 +192,163 @@ class AlertsResponse(BaseModel):
     summary: dict = Field(..., description="간단한 요약 (defect_rate, avg_confidence)")
 
 
-# ===== 피드백 관련 스키마 =====
+# ===== 피드백 관련 스키마 (Bulk 전용) =====
 
-class FeedbackRequest(BaseModel):
+class FeedbackItem(BaseModel):
     """
-    피드백 생성 요청
+    개별 bbox 피드백 (bulk 요청의 단위)
     """
-    log_id: int = Field(..., gt=0, description="검사 로그 ID")
-    feedback_type: str = Field(..., description="피드백 종류 (false_positive, false_negative, label_correction)")
-    correct_label: Optional[str] = Field(None, description="올바른 라벨 (label_correction 시 필수)")
-    comment: Optional[str] = Field(None, max_length=500, description="추가 설명")
-    created_by: Optional[str] = Field(None, max_length=100, description="작성자")
+    feedback_type: str
+    correct_label: Optional[str] = None
+    comment: Optional[str] = Field(None, max_length=500)
+    target_bbox: Optional[List[int]] = None
 
     @field_validator('feedback_type')
     @classmethod
     def validate_feedback_type(cls, v: str) -> str:
-        allowed = {'false_positive', 'false_negative', 'label_correction'}
+        allowed = {'false_positive', 'false_negative', 'tp_wrong_class'}
         if v not in allowed:
             raise ValueError(f"feedback_type must be one of {allowed}")
         return v
 
     @model_validator(mode='after')
-    def validate_correct_label_requirement(self):
+    def validate_feedback_requirements(self):
         from config.settings import ALLOWED_FEEDBACK_LABELS
 
-        # label_correction 타입인 경우 correct_label 필수 및 검증
-        if self.feedback_type == 'label_correction':
-            if not self.correct_label or self.correct_label.strip() == '':
-                raise ValueError("correct_label required for label_correction")
-            # 허용값 검증
+        # FeedbackRequest와 동일한 검증 로직 재사용 (DRY 원칙)
+        if self.feedback_type == 'tp_wrong_class':
+            if not self.correct_label:
+                raise ValueError("correct_label required for tp_wrong_class")
             if self.correct_label not in ALLOWED_FEEDBACK_LABELS:
-                raise ValueError(
-                    f"correct_label must be one of {ALLOWED_FEEDBACK_LABELS}, got '{self.correct_label}'"
-                )
+                raise ValueError(f"correct_label must be one of {ALLOWED_FEEDBACK_LABELS}")
+
+        if self.feedback_type in ['false_positive', 'tp_wrong_class']:
+            if not self.target_bbox:
+                raise ValueError(f"target_bbox required for {self.feedback_type}")
+
+        if self.target_bbox:
+            if len(self.target_bbox) != 4:
+                raise ValueError("target_bbox must have 4 elements [x1, y1, x2, y2]")
+            if self.target_bbox[0] >= self.target_bbox[2]:
+                raise ValueError("x1 must be less than x2")
+            if self.target_bbox[1] >= self.target_bbox[3]:
+                raise ValueError("y1 must be less than y2")
+
         return self
 
 
-class FeedbackResponse(BaseModel):
+class BulkFeedbackRequest(BaseModel):
     """
-    피드백 생성 응답
+    다중 bbox 피드백 생성 요청 (자동 재라벨링)
     """
-    id: int = Field(..., description="피드백 ID")
-    log_id: int = Field(..., description="검사 로그 ID")
-    feedback_type: str = Field(..., description="피드백 종류")
-    correct_label: Optional[str] = Field(None, description="올바른 라벨")
-    comment: Optional[str] = Field(None, description="추가 설명")
-    created_at: str = Field(..., description="생성 시각 (ISO 8601)")
-    created_by: Optional[str] = Field(None, description="작성자")
-    status: str = Field(default="ok", description="응답 상태")
+    log_id: int = Field(..., gt=0)
+    image_width: int = Field(..., gt=0, description="크롭된 이미지 너비 (픽셀)")
+    image_height: int = Field(..., gt=0, description="크롭된 이미지 높이 (픽셀)")
+    feedbacks: List[FeedbackItem] = Field(..., description="피드백 목록 (피드백 없는 bbox는 제외)")
+    false_negative_memo: Optional[str] = Field(None, max_length=500, description="FALSE_NEGATIVE 메모")
+    created_by: Optional[str] = Field(None, max_length=100)
+
+    @field_validator('feedbacks')
+    @classmethod
+    def validate_feedbacks_count(cls, v: List[FeedbackItem]) -> List[FeedbackItem]:
+        # 빈 배열 허용 (모든 bbox가 정답일 수 있음)
+        if len(v) > 100:
+            raise ValueError(f"feedbacks cannot exceed 100 items, got {len(v)}")
+        return v
+
+
+class BulkFeedbackResponse(BaseModel):
+    """
+    다중 bbox 피드백 생성 응답 (자동 재라벨링)
+    """
+    status: str = Field(default="ok")
+    log_id: int
+    feedback_ids: List[int] = Field(..., description="생성된 피드백 ID 목록")
+    saved_to_s3: bool = Field(..., description="S3 refined/ 폴더 저장 여부")
+    refined_path: Optional[str] = Field(None, description="refined/ 이미지 경로")
+    final_label_count: int = Field(..., description="최종 라벨 개수")
+    false_negative_pending: bool = Field(..., description="FALSE_NEGATIVE 대기 중 여부")
+    created_at: str
+
+
+# ===== Feedback Stats 응답 스키마 (bbox 기반 정확도 분석) =====
+
+class ImageStats(BaseModel):
+    """
+    이미지 단위 통계 (전체 + 검증 진행률)
+    """
+    total: int = Field(..., description="전체 이미지 개수")
+    by_result: Dict[str, int] = Field(..., description="결과별 개수 {'defect': 4, 'normal': 2}")
+    verified: int = Field(..., description="검증 완료 이미지 개수")
+    unverified: int = Field(..., description="미검증 이미지 개수")
+    verification_rate: float = Field(..., description="검증률 (%)")
+    verified_by_result: Dict[str, int] = Field(..., description="검증된 이미지의 결과별 개수")
+
+
+class DefectTypeAccuracy(BaseModel):
+    """
+    결함 타입별 정확도 (검증된 defect bbox만)
+    """
+    total: int = Field(..., description="해당 타입 bbox 개수")
+    correct: int = Field(..., description="정답 개수 (피드백 없음)")
+    fp: int = Field(..., description="오탐 개수 (false_positive)")
+    wrong: int = Field(..., description="클래스 오류 개수 (tp_wrong_class)")
+    accuracy: float = Field(..., description="정확도 (%)")
+
+
+class BboxStats(BaseModel):
+    """
+    bbox 단위 통계 (검증된 defect만)
+    모델 정확도 분석의 핵심 지표
+    """
+    total: int = Field(..., description="전체 bbox 개수")
+    correct: int = Field(..., description="정답 개수 (피드백 없음 = 암묵적 TP)")
+    false_positive: int = Field(..., description="오탐 개수")
+    wrong_class: int = Field(..., description="클래스 오류 개수")
+    accuracy_rate: float = Field(..., description="정확도 (%)")
+    by_defect_type: Dict[str, DefectTypeAccuracy] = Field(
+        default_factory=dict,
+        description="결함 타입별 정확도"
+    )
 
 
 class FeedbackTypeStats(BaseModel):
     """
-    피드백 종류별 통계
+    피드백 타입별 집계 (전체)
     """
-    false_positive: int = Field(default=0, description="오탐 개수 (정상인데 불량으로)")
-    false_negative: int = Field(default=0, description="미탐 개수 (불량인데 정상으로)")
-    label_correction: int = Field(default=0, description="라벨 수정 개수 (결함 종류 틀림)")
-
-
-class DefectTypeFeedbackStats(BaseModel):
-    """
-    결함 타입별 피드백 통계
-    """
-    defect_type: str = Field(..., description="결함 종류")
+    total: int = Field(..., description="전체 피드백 개수")
     false_positive: int = Field(default=0, description="오탐 개수")
+    tp_wrong_class: int = Field(default=0, description="클래스 오류 개수")
     false_negative: int = Field(default=0, description="미탐 개수")
-    label_correction: int = Field(default=0, description="라벨 수정 개수")
+
+
+class ClassConfusion(BaseModel):
+    """
+    클래스 혼동 패턴 (FN 제외)
+    모델이 어떤 클래스를 어떤 클래스로 잘못 예측하는지
+    """
+    from_class: str = Field(..., description="원본 예측 클래스")
+    to_class: str = Field(..., description="실제 정답 클래스")
+    count: int = Field(..., description="발생 횟수")
 
 
 class FeedbackStatsResponse(BaseModel):
     """
-    피드백 통계 응답
+    피드백 통계 응답 (bbox 기반 정확도 분석)
+
+    MLOps 모니터링용:
+    - image_stats: 전체 이미지 + 검증 진행률
+    - bbox_stats: 검증된 defect의 bbox별 정확도 (핵심)
+    - feedback_stats: 피드백 타입별 집계
+    - class_confusion: 클래스 혼동 패턴
     """
-    total_feedback: int = Field(..., description="전체 피드백 개수")
-    by_type: FeedbackTypeStats = Field(..., description="피드백 종류별 집계")
-    by_defect_type: List[DefectTypeFeedbackStats] = Field(
+    image_stats: ImageStats = Field(..., description="이미지 단위 통계")
+    bbox_stats: BboxStats = Field(..., description="bbox 단위 통계 (검증된 defect만)")
+    feedback_stats: FeedbackTypeStats = Field(..., description="피드백 타입별 집계")
+    class_confusion: List[ClassConfusion] = Field(
         default_factory=list,
-        description="결함 타입별 피드백 집계"
+        description="클래스 혼동 패턴 (FN 제외)"
     )
-    recent_feedback_count: int = Field(..., description="최근 24시간 피드백 개수")
-    period_description: str = Field(default="최근 24시간", description="집계 기간")
 
 
 class FeedbackQueueResponse(BaseModel):
@@ -287,16 +363,6 @@ class FeedbackQueueResponse(BaseModel):
     created_at: str = Field(..., description="신고 시간")
     # 기존 AI 예측 정보 (참고용)
     original_detections: List[Dict] = Field(default_factory=list, description="기존 AI 예측 결과")
+    target_bbox: Optional[List[int]] = Field(None, description="대상 bbox [x1, y1, x2, y2]")
 
 
-class RelabelRequest(BaseModel):
-    """
-    재라벨링 승인 요청 데이터
-    """
-    feedback_id: int = Field(..., description="대상 피드백 ID")
-    final_class_id: int = Field(..., description="확정된 클래스 ID")
-    final_bbox: List[float] = Field(..., description="확정된 좌표 [x_center, y_center, w, h] Normalized")
-    
-    # 좌표 정규화를 위해 필요할 수 있음 (선택)
-    image_width: Optional[int] = Field(None, description="이미지 너비")
-    image_height: Optional[int] = Field(None, description="이미지 높이")

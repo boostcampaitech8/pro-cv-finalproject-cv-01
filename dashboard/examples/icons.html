@@ -33,6 +33,39 @@ Coded by www.creative-tim.com
   <link href="../assets/css/paper-dashboard.css?v=2.0.1" rel="stylesheet" />
   <!-- CSS Just for demo purpose, don't include it in your project -->
   <link href="../assets/demo/demo.css" rel="stylesheet" />
+  <style>
+    /* Loading Spinner Styles */
+    .loader {
+      border: 5px solid #f3f3f3;
+      /* Light grey */
+      border-top: 5px solid #66615b;
+      /* Grey */
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      margin-top: -25px;
+      /* Half of height */
+      margin-left: -25px;
+      /* Half of width */
+      z-index: 10;
+      display: none;
+      /* Hidden by default */
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
 </head>
 
 <body class="">
@@ -92,7 +125,16 @@ Coded by www.creative-tim.com
             <span class="navbar-toggler-bar navbar-kebab"></span>
           </button>
           <div class="collapse navbar-collapse justify-content-end" id="navigation">
-
+            <!-- 세션 선택 드롭다운 -->
+            <ul class="navbar-nav">
+              <li class="nav-item">
+                <div class="form-group mb-0" style="margin-top: 8px;">
+                  <select class="form-control" id="session-select" style="width: 250px; height: 38px;">
+                    <option value="">All Sessions (전체)</option>
+                  </select>
+                </div>
+              </li>
+            </ul>
           </div>
         </div>
       </nav>
@@ -107,8 +149,8 @@ Coded by www.creative-tim.com
               <div class="card-body">
                 <div class="image-container"
                   style="position: relative; width: 100%; height: 600px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 12px; padding: 10px;">
-                  <img id="main-image" src="../assets/img/logo-small.png" alt="Select a defect log to view image"
-                    style="display: block;">
+                  <div id="image-loader" class="loader"></div>
+                  <img id="main-image" src="" alt="Select a defect log to view image" style="display: none;">
                   <div id="bbox-container"
                     style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
                 </div>
@@ -147,6 +189,8 @@ Coded by www.creative-tim.com
               </div>
             </div>
           </div>
+          <!-- 세션 선택 드롭다운 -->
+
         </div>
       </div>
 
@@ -167,6 +211,8 @@ Coded by www.creative-tim.com
   <script src="../assets/js/paper-dashboard.min.js?v=2.0.1" type="text/javascript"></script>
   <!-- Paper Dashboard DEMO methods, don't include it in your project! -->
   <script src="../assets/demo/demo.js"></script>
+  <!-- API Client -->
+  <script src="../assets/js/api-client.js"></script>
   <script>
     $(document).ready(function () {
       // Dummy Data for Defect Logs (Mocking API Response)
@@ -214,13 +260,17 @@ Coded by www.creative-tim.com
           }
 
           // 세션 ID 표시 (없으면 '-')
-          const sessionDisplay = log.session_id ? log.session_id : '-';
+          const sessionDisplay = log.session_id ? `${log.session_id}` : '-';
 
           const row = `
               <tr class="defect-row" style="cursor: pointer; font-size: 13px; text-align: center;" data-id="${log.uid}">
-                <td class="text-muted">${sessionDisplay}</td>
+                <td class="text-muted" style="font-size: 11px;">${sessionDisplay}</td>
                 <td>${log.time}</td>
-                <td class="${typeClass}">${types}</td>
+                <td class="${typeClass}">
+                  <div style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; max-height: 3em; line-height: 1.5;">
+                    ${types}
+                  </div>
+                </td>
                 <td class="text-primary" style="font-size: 12px;">${log.id}</td>
               </tr>
             `;
@@ -237,12 +287,83 @@ Coded by www.creative-tim.com
       const API_BASE_URL = "/api";
 
       // Start polling automatically
-      fetchLogs();
-      setInterval(fetchLogs, 2000);
+      // Start polling automatically
+      initSessionSelector();
+      // fetchLogs called inside initSessionSelector or after it
+
+      // Session Management Logic
+      async function initSessionSelector() {
+        const selector = document.getElementById("session-select");
+        if (!selector) return;
+
+        // Load Sessions
+        // Now ApiClient should be available
+        if (typeof ApiClient !== 'undefined') {
+          const result = await ApiClient.getSessions();
+          if (result && result.sessions) {
+            result.sessions.forEach((session) => {
+              const option = document.createElement("option");
+              option.value = session.id;
+
+              // Simple date formatting
+              // Helper to format date
+              const formatDate = (dateStr) => {
+                if (!dateStr) return "Active";
+                const d = new Date(dateStr);
+                const m = String(d.getMonth() + 1).padStart(2, "0");
+                const da = String(d.getDate()).padStart(2, "0");
+                const h = String(d.getHours()).padStart(2, "0");
+                const min = String(d.getMinutes()).padStart(2, "0");
+                return `${m}/${da} ${h}:${min}`;
+              };
+
+              const startTime = formatDate(session.started_at);
+              const endTime = session.ended_at ? formatDate(session.ended_at) : "Active";
+
+              option.textContent = `#${session.id} (${startTime} - ${endTime})`;
+              selector.appendChild(option);
+            });
+          }
+        }
+
+        // Restore from localStorage
+        const savedSession = localStorage.getItem("dashboard_selected_session");
+        if (savedSession) {
+          const exists = Array.from(selector.options).some(opt => opt.value === savedSession);
+          if (exists) {
+            selector.value = savedSession;
+          }
+        }
+
+        // Initial Fetch
+        fetchLogs();
+
+        // Polling
+        setInterval(fetchLogs, 2000);
+
+        // Change Event
+        selector.addEventListener("change", (e) => {
+          const val = e.target.value;
+          if (val) {
+            localStorage.setItem("dashboard_selected_session", val);
+          } else {
+            localStorage.removeItem("dashboard_selected_session");
+          }
+          fetchLogs(); // Refetch immediately
+        });
+      }
 
       async function fetchLogs() {
         try {
-          const response = await fetch(`${API_BASE_URL}/latest?limit=50`);
+          const selector = document.getElementById("session-select");
+          const sessionId = selector ? selector.value : "";
+
+          let url = `${API_BASE_URL}/latest?limit=50`;
+          if (sessionId) {
+            url += `&session_id=${sessionId}`;
+          }
+
+          const response = await fetch(url);
           if (!response.ok) throw new Error('API Network response was not ok');
 
           const data = await response.json();
@@ -282,9 +403,10 @@ Coded by www.creative-tim.com
 
             // Map Defects from 'detections' array
             if (record.detections && record.detections.length > 0) {
-              // Update confidence to the max confidence of detections
-              const maxConf = Math.max(...record.detections.map(d => d.confidence));
-              groupedMap.get(record.image_id).confidence = maxConf;
+              // Update confidence to the average confidence of detections
+              const totalConf = record.detections.reduce((sum, d) => sum + d.confidence, 0);
+              const avgConf = totalConf / record.detections.length;
+              groupedMap.get(record.image_id).confidence = avgConf;
 
               record.detections.forEach(det => {
                 let bbox = [0, 0, 0, 0];
@@ -358,6 +480,8 @@ Coded by www.creative-tim.com
 
       // Image Load Handler for Smart Resizing
       mainImage.on('load', function () {
+        $('#image-loader').hide(); // Hide loader when image is ready
+        $(this).show(); // Show image
         const img = this;
         const container = $(this).parent();
         const containerW = container.width(); // Inner width (minus padding)
@@ -395,6 +519,11 @@ Coded by www.creative-tim.com
           // Store defects globally for the load handler
           currentDefects = selectedLog.defects;
 
+          // Show loader and hide bboxes before setting src
+          $('#image-loader').show();
+          // mainImage.hide(); // Keep existing image visible until new one loads
+          $('#bbox-container').empty(); // Clear previous bboxes
+
           // Update Image - This triggers the 'load' event
           mainImage.attr('src', selectedLog.image);
 
@@ -412,7 +541,7 @@ Coded by www.creative-tim.com
           detailsTitle.text(`${selectedLog.id} - ${types}`);
           detailsDesc.html(`
             <strong>Time:</strong> ${selectedLog.time}<br>
-            <strong>Confidence:</strong> ${(selectedLog.confidence * 100).toFixed(1)}%<br>
+            <strong>Confidence:</strong> ${(!isNaN(selectedLog.confidence) && selectedLog.confidence !== null) ? (selectedLog.confidence * 100).toFixed(1) + '%' : '-'}<br>
             <strong>Defect Count:</strong> ${selectedLog.defects.length}
           `);
 

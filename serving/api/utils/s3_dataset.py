@@ -1,8 +1,10 @@
 import boto3
 import logging
+import json
+from datetime import datetime
 from config import settings
 from botocore.exceptions import ClientError
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 logger = logging.getLogger("uvicorn")
 
@@ -77,16 +79,16 @@ async def get_refined_dataset_stats() -> dict:
     """
     bucket = settings.S3_BUCKET_NAME
     prefix = "refined/images/"
-    
+
     try:
         # Paginator를 사용하여 전체 객체 수 카운트
         paginator = s3_client.get_paginator('list_objects_v2')
         count = 0
-        
+
         for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
             if 'Contents' in page:
                 count += len(page['Contents'])
-                
+
         return {
             "image_count": count,
             "s3_prefix": f"refined/",
@@ -95,3 +97,114 @@ async def get_refined_dataset_stats() -> dict:
     except Exception as e:
         logger.error(f"[S3 Stats] Failed to get stats: {e}")
         return {"image_count": 0, "error": str(e)}
+
+
+async def save_to_refined(
+    image_s3_key: str,
+    labels: List[Dict],
+    log_id: int
+) -> str:
+    """
+    refined/ 폴더에 이미지 복사 + YOLO 라벨 생성
+
+    Args:
+        image_s3_key: raw/20260203/xxx.jpg
+        labels: [{"class_id": 0, "bbox": [x, y, w, h]}, ...]
+        log_id: 검사 로그 ID
+
+    Returns:
+        refined_path: refined/images/42_xxx.jpg
+    """
+    bucket = settings.S3_BUCKET_NAME
+
+    # 파일명 생성: {log_id}_{원본파일명}
+    original_filename = image_s3_key.split("/")[-1]  # xxx.jpg
+    refined_filename = f"{log_id}_{original_filename}"
+
+    # 1. 이미지 복사 (S3 Copy Object)
+    refined_image_key = f"refined/images/{refined_filename}"
+    try:
+        s3_client.copy_object(
+            CopySource={'Bucket': bucket, 'Key': image_s3_key},
+            Bucket=bucket,
+            Key=refined_image_key
+        )
+    except ClientError as e:
+        logger.error(f"[S3] Failed to copy image: {image_s3_key} -> {refined_image_key}, error: {e}")
+        raise
+
+    # 2. 라벨 파일 생성 (YOLO 포맷)
+    label_content = ""
+    for label in labels:
+        # class_id x_center y_center width height (정규화된 값)
+        label_content += f"{label['class_id']} {label['bbox'][0]:.6f} {label['bbox'][1]:.6f} {label['bbox'][2]:.6f} {label['bbox'][3]:.6f}\n"
+
+    refined_label_key = f"refined/labels/{refined_filename.replace('.jpg', '.txt')}"
+    try:
+        s3_client.put_object(
+            Bucket=bucket,
+            Key=refined_label_key,
+            Body=label_content,
+            ContentType="text/plain"
+        )
+    except ClientError as e:
+        logger.error(f"[S3] Failed to save label: {refined_label_key}, error: {e}")
+        raise
+
+    logger.info(f"[S3] Refined data saved: {refined_image_key}, {len(labels)} labels")
+    return refined_image_key
+
+
+async def copy_to_needs_labeling(
+    image_s3_key: str,
+    log_id: int,
+    memo: str,
+    original_detections: Optional[List[Dict]] = None
+) -> None:
+    """
+    FALSE_NEGATIVE 이미지를 needs_labeling/ 폴더에 복사
+
+    Args:
+        image_s3_key: raw/20260203/xxx.jpg
+        log_id: 검사 로그 ID
+        memo: FALSE_NEGATIVE 메모
+        original_detections: 원본 AI 예측 결과 (선택)
+    """
+    bucket = settings.S3_BUCKET_NAME
+    original_filename = image_s3_key.split("/")[-1]
+    needs_labeling_filename = f"{log_id}_{original_filename}"
+
+    # 1. 이미지 복사
+    needs_labeling_image_key = f"needs_labeling/images/{needs_labeling_filename}"
+    try:
+        s3_client.copy_object(
+            CopySource={'Bucket': bucket, 'Key': image_s3_key},
+            Bucket=bucket,
+            Key=needs_labeling_image_key
+        )
+    except ClientError as e:
+        logger.error(f"[S3] Failed to copy image to needs_labeling: {image_s3_key}, error: {e}")
+        raise
+
+    # 2. 메타데이터 JSON 생성
+    metadata = {
+        "log_id": log_id,
+        "original_s3_key": image_s3_key,
+        "false_negative_memo": memo,
+        "original_detections": original_detections or [],
+        "created_at": datetime.now().isoformat()
+    }
+
+    metadata_key = f"needs_labeling/metadata/{needs_labeling_filename.replace('.jpg', '.json')}"
+    try:
+        s3_client.put_object(
+            Bucket=bucket,
+            Key=metadata_key,
+            Body=json.dumps(metadata, ensure_ascii=False, indent=2),
+            ContentType="application/json"
+        )
+    except ClientError as e:
+        logger.error(f"[S3] Failed to save metadata to needs_labeling: {metadata_key}, error: {e}")
+        raise
+
+    logger.info(f"[S3] FALSE_NEGATIVE saved: {needs_labeling_image_key}")

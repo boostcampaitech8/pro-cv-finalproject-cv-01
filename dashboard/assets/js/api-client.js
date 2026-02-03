@@ -93,12 +93,12 @@ const DashboardUpdater = {
 
     // Defect type별 고정 색상 (범례와 일치)
     defectTypeColors: {
-        "missing_hole": "#51cbce",     // primary (cyan)
-        "mouse_bite": "#fbc658",       // warning (yellow)
-        "open_circuit": "#ef8157",     // danger (orange/red)
-        "short": "#6bd098",            // success (green)
-        "spur": "#51bcda",             // info (blue)
-        "spurious_copper": "#e3e3e3"   // gray
+        "Missing Hole": "#51cbce",     // primary (cyan)
+        "Mouse Bite": "#fbc658",       // warning (yellow)
+        "Open Circuit": "#ef8157",     // danger (orange/red)
+        "Short": "#6bd098",            // success (green)
+        "Spur": "#51bcda",             // info (blue)
+        "Spurious Copper": "#e3e3e3"   // gray
     },
 
     init: function () {
@@ -129,7 +129,14 @@ const DashboardUpdater = {
             // 세션 ID 저장
             sessionStorage.setItem("selectedSessionId", this.selectedSessionId);
 
+            // Save to localStorage
+            if (this.selectedSessionId) {
+                localStorage.setItem("dashboard_selected_session", this.selectedSessionId);
+            } else {
+                localStorage.removeItem("dashboard_selected_session");
+            }
             this.dismissedAlertSession = undefined; // 세션 변경 시 알림 초기화
+
             console.log("Session selected:", this.selectedSessionId);
 
             // 트렌드 차트 리셋 (세션 변경 시)
@@ -178,11 +185,21 @@ const DashboardUpdater = {
             selector.appendChild(option);
         });
 
-        // "전체" 옵션 선택 처리
+        // "전체" 옵션 선택 처리 + 유효성 검증 (dev 로직 통합)
         if (this.selectedSessionId === null) {
             selector.options[0].selected = true;
-        }
-    },
+        } else {
+            // 저장된 세션이 실제 목록에 존재하는지 검증
+            const exists = Array.from(selector.options).some(opt => opt.value == this.selectedSessionId);
+            if (!exists) {
+                // 목록에 없는 세션이면 "전체"로 복구하고 저장소 정리
+                selector.options[0].selected = true;
+                this.selectedSessionId = null;
+                localStorage.removeItem("dashboard_selected_session");
+                sessionStorage.removeItem("selectedSessionId");
+                console.log("Invalid session removed, reset to All Sessions");
+            }
+        },
 
     // 날짜/시간 포맷팅
     formatDateTime: function (isoString) {
