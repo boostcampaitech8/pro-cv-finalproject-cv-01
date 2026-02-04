@@ -59,25 +59,36 @@ SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")  # 환경변수로 관리
 SLACK_ALERT_ENABLED = os.getenv("SLACK_ALERT_ENABLED", "false").lower() == "true"
 
 # Defect Type Settings
-ALLOWED_DEFECT_TYPES = {"scratch", "hole", "contamination", "crack"}
+ALLOWED_DEFECT_TYPES = {"missing_hole", "mouse_bite", "open_circuit", "short", "spur", "spurious_copper"}
 ALLOWED_FEEDBACK_LABELS = ALLOWED_DEFECT_TYPES | {"normal"}  # 피드백에서는 normal도 허용
 
 # YOLO 클래스 ID 매핑 (학습 데이터 생성용)
 CLASS_ID_MAP = {
-    "scratch": 0,
-    "hole": 1,
-    "contamination": 2,
-    "crack": 3
+    "missing_hole": 0,
+    "mouse_bite": 1,
+    "open_circuit": 2,
+    "short": 3,
+    "spur": 4,
+    "spurious_copper": 5
 }
 
 def get_class_id(defect_type: str) -> int:
     """
     결함 타입을 YOLO 클래스 ID로 변환
+    엣지에서 "Missing Hole" 형식으로 전송되므로 정규화 처리
 
     Args:
-        defect_type: 결함 종류 (scratch, hole 등)
+        defect_type: 결함 종류 ("Missing Hole", "missing_hole" 등)
 
     Returns:
-        클래스 ID (0-based)
+        클래스 ID (0-based), 매칭 실패 시 -1
     """
-    return CLASS_ID_MAP.get(defect_type, 0)
+    # 정규화: 소문자 + 공백을 언더스코어로 변환
+    normalized = defect_type.strip().lower().replace(" ", "_")
+    result = CLASS_ID_MAP.get(normalized, -1)
+    if result == -1:
+        import logging
+        logging.getLogger("uvicorn").warning(
+            f"[CLASS_ID] 알 수 없는 결함 타입: '{defect_type}' (정규화: '{normalized}')"
+        )
+    return result

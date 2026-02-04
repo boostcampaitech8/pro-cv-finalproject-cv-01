@@ -196,14 +196,18 @@ async def create_bulk_feedback(request: BulkFeedbackRequest):
                 })
 
         # 4. S3 refined/ 저장
+        # FN 피드백이 있으면 라벨이 불완전하므로 refined에 저장하지 않음
+        # (needs_labeling에서 수동 라벨링 후 별도 저장해야 함)
         refined_path = None
         saved_to_s3 = False
 
-        if final_labels or len(original_detections) > 0:
+        if not fn_feedbacks and (final_labels or len(original_detections) > 0):
+            # class_id가 -1인 라벨 필터링 (알 수 없는 결함 타입)
+            valid_labels = [l for l in final_labels if l["class_id"] != -1]
             try:
                 refined_path = await s3_dataset.save_to_refined(
                     image_s3_key=image_s3_key,
-                    labels=final_labels,
+                    labels=valid_labels,
                     log_id=request.log_id
                 )
                 saved_to_s3 = True
@@ -235,7 +239,8 @@ async def create_bulk_feedback(request: BulkFeedbackRequest):
                     image_s3_key=image_s3_key,
                     log_id=request.log_id,
                     fn_comments=fn_comments,
-                    original_detections=original_detections
+                    original_detections=original_detections,
+                    bbox_feedbacks=non_fn_feedbacks
                 )
             except Exception as e:
                 logger.error(f"[S3] Failed to copy to needs_labeling for log_id={request.log_id}: {e}")
