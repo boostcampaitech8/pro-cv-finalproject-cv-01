@@ -59,15 +59,17 @@ SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")  # 환경변수로 관리
 SLACK_ALERT_ENABLED = os.getenv("SLACK_ALERT_ENABLED", "false").lower() == "true"
 
 # Defect Type Settings
-ALLOWED_DEFECT_TYPES = {"scratch", "hole", "contamination", "crack"}
+ALLOWED_DEFECT_TYPES = {"missing_hole", "mouse_bite", "open_circuit", "short", "spur", "spurious_copper"}
 ALLOWED_FEEDBACK_LABELS = ALLOWED_DEFECT_TYPES | {"normal"}  # 피드백에서는 normal도 허용
 
 # YOLO 클래스 ID 매핑 (학습 데이터 생성용)
 CLASS_ID_MAP = {
-    "scratch": 0,
-    "hole": 1,
-    "contamination": 2,
-    "crack": 3
+    "missing_hole": 0,
+    "mouse_bite": 1,
+    "open_circuit": 2,
+    "short": 3,
+    "spur": 4,
+    "spurious_copper": 5
 }
 
 def get_class_id(defect_type: str) -> int:
