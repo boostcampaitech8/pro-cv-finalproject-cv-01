@@ -193,96 +193,105 @@ Coded by www.creative-tim.com
 
         </div>
 
-        <!-- Feedback Row -->
+        <!-- Bottom Row: Unified Feedback System (Side-by-Side) -->
         <div class="row" style="margin-top: 30px;">
-          <!-- Left: Feedback Controls for Selected Box -->
-          <div class="col-md-6">
-            <div class="card" style="min-height: 250px;">
+          <!-- Left Sub-col: Unified Input Form (Wider) -->
+          <div class="col-md-8">
+            <div class="card" style="min-height: 350px;">
               <div class="card-header">
-                <h5 class="card-title">Defect Feedback <small class="text-muted">(Click a bbox in image)</small></h5>
+                <h5 class="card-title" id="feedback-form-title">Feedback</h5>
               </div>
               <div class="card-body">
-                <div id="no-box-selected" class="text-muted text-center mt-4">
-                  <p>Select a bounding box on the image to provide feedback.</p>
-                </div>
+                <form id="unified-feedback-form">
+                  <!-- Context Info -->
+                  <div class="alert alert-secondary" id="form-context-info"
+                    style="font-size: 12px; padding: 5px; display:none;">
+                    Target: Box #<span id="target-box-id">-</span>
+                  </div>
 
-                <div id="box-feedback-form" style="display: none;">
-                  <h6 class="text-info" id="selected-box-info">Selected: Unknown</h6>
+                  <div class="row">
+                    <!-- Left: Type Selection -->
+                    <div class="col-md-5 border-right">
+                      <div class="form-group">
+                        <label>Feedback Type</label>
+                        <div class="custom-controls-stacked">
+                          <!-- Global Default -->
+                          <div class="custom-control custom-radio">
+                            <input type="radio" id="fb-fn" name="feedbackTypeUnified" class="custom-control-input"
+                              value="false_negative" checked>
+                            <label class="custom-control-label" for="fb-fn">False Negative (Missed)</label>
+                          </div>
+                          <!-- Box Specific (Enabled only when box selected) -->
+                          <div class="custom-control custom-radio">
+                            <input type="radio" id="fb-fp" name="feedbackTypeUnified" class="custom-control-input"
+                              value="false_positive" disabled>
+                            <label class="custom-control-label" for="fb-fp">False Positive (Not Defect)</label>
+                          </div>
+                          <div class="custom-control custom-radio">
+                            <input type="radio" id="fb-wrong" name="feedbackTypeUnified" class="custom-control-input"
+                              value="tp_wrong_class" disabled>
+                            <label class="custom-control-label" for="fb-wrong">Wrong Class</label>
+                          </div>
+                        </div>
+                      </div>
 
-                  <form>
-                    <div class="form-group">
-                      <label>Feedback Type</label>
-                      <div class="custom-controls-stacked">
-                        <div class="custom-control custom-radio">
-                          <input type="radio" id="fb-none" name="feedbackType" class="custom-control-input" value="none"
-                            checked>
-                          <label class="custom-control-label" for="fb-none">Correct (No Issue)</label>
-                        </div>
-                        <div class="custom-control custom-radio">
-                          <input type="radio" id="fb-fp" name="feedbackType" class="custom-control-input"
-                            value="false_positive">
-                          <label class="custom-control-label" for="fb-fp">False Positive (Not a Defect)</label>
-                        </div>
-                        <div class="custom-control custom-radio">
-                          <input type="radio" id="fb-wrong" name="feedbackType" class="custom-control-input"
-                            value="tp_wrong_class">
-                          <label class="custom-control-label" for="fb-wrong">Wrong Class</label>
-                        </div>
+                      <div class="form-group" id="unified-correct-class-group" style="display: none;">
+                        <label>Correct Class</label>
+                        <select class="form-control form-control-sm" id="unified-correct-class-select">
+                          <option value="Missing Hole">Missing Hole</option>
+                          <option value="Mouse Bite">Mouse Bite</option>
+                          <option value="Open Circuit">Open Circuit</option>
+                          <option value="Short">Short</option>
+                          <option value="Spur">Spur</option>
+                          <option value="Spurious Copper">Spurious Copper</option>
+                        </select>
                       </div>
                     </div>
 
-                    <div class="form-group" id="correct-class-group" style="display: none;">
-                      <label>Correct Class</label>
-                      <select class="form-control" id="correct-class-select">
-                        <option value="Missing Hole">Missing Hole</option>
-                        <option value="Mouse Bite">Mouse Bite</option>
-                        <option value="Open Circuit">Open Circuit</option>
-                        <option value="Short">Short</option>
-                        <option value="Spur">Spur</option>
-                        <option value="Spurious Copper">Spurious Copper</option>
-                        <option value="scratch">scratch</option>
-                        <option value="dent">dent</option>
-                        <option value="hole">hole</option>
-                      </select>
-                    </div>
+                    <!-- Right: Details -->
+                    <div class="col-md-7">
+                      <div class="form-group">
+                        <label>Reviewer Name</label>
+                        <input type="text" class="form-control form-control-sm" id="created-by-input"
+                          placeholder="Name">
+                      </div>
 
-                    <div class="form-group">
-                      <label>Comment</label>
-                      <input type="text" class="form-control form-control-sm" id="box-comment" placeholder="Details...">
-                    </div>
+                      <div class="form-group">
+                        <label>Comment</label>
+                        <textarea class="form-control" id="unified-comment" rows="3"
+                          placeholder="Enter details..."></textarea>
+                      </div>
 
-                    <!-- Hidden/Optional Button -->
-                    <button type="button" class="btn btn-sm btn-outline-success" id="save-box-feedback"
-                      style="display:none;">Update Box</button>
-                  </form>
-                </div>
+                      <div class="text-right mt-2">
+                        <button type="button" class="btn btn-sm btn-secondary" id="cancel-selection-btn"
+                          style="display:none;">Cancel Box</button>
+                        <button type="button" class="btn btn-sm btn-success" id="add-to-queue-btn">Add to
+                          Queue</button>
+                      </div>
+                    </div>
+                  </div>
+                </form>
               </div>
             </div>
           </div>
 
-          <!-- Right: Global Submission -->
-          <div class="col-md-6">
-            <div class="card" style="min-height: 250px;">
-              <div class="card-header">
-                <h5 class="card-title">Submission</h5>
+          <!-- Right Sub-col: Feedback Queue (Narrower) -->
+          <div class="col-md-4">
+            <div class="card" style="min-height: 350px; display: flex; flex-direction: column;">
+              <div class="card-header bg-light">
+                <h6 class="card-title mb-0" style="font-size: 14px;">Pending Queue <span class="badge badge-info"
+                    id="queue-count">0</span></h6>
               </div>
-              <div class="card-body">
-                <form id="global-feedback-form">
-                  <div class="form-group">
-                    <label>Missing Defects (False Negative Memo)</label>
-                    <textarea class="form-control" id="feedback-memo" rows="3"
-                      placeholder="Describe any missing defects not detected"></textarea>
-                  </div>
-
-                  <div class="alert alert-info" role="alert" style="font-size: 12px; padding: 10px;">
-                    <strong>Summary:</strong> <span id="feedback-summary">0 Box Selected</span>
-                  </div>
-
-                  <div class="text-right">
-                    <button type="button" class="btn btn-primary btn-block" id="send-feedback-btn">Submit All
-                      Feedback</button>
-                  </div>
-                </form>
+              <div class="card-body p-2" style="flex: 1; overflow-y: auto; max-height: 300px;">
+                <ul class="list-group list-group-flush" id="feedback-queue-list">
+                  <!-- Queue Items will be appended here -->
+                  <li class="list-group-item text-muted text-center" id="empty-queue-msg" style="font-size: 12px;">
+                    No items pending</li>
+                </ul>
+              </div>
+              <div class="card-footer p-2">
+                <button type="button" class="btn btn-primary btn-block btn-sm" id="submit-queue-btn">Submit
+                  All</button>
               </div>
             </div>
           </div>
@@ -315,11 +324,13 @@ Coded by www.creative-tim.com
       // Updated to support multiple defects per image
       const defectLogs = []; // Cleared for API usage
       let currentDefects = []; // Store currently selected defects for redraw on resize/load
+      let selectedLog = null; // Defined globally for submission access
 
       const tableBody = $('#defect-log-table-body');
       const mainImage = $('#main-image');
       const detailsTitle = $('#image-details-title');
       const detailsDesc = $('#image-details-desc');
+
 
       // Color mapping for defect types
       const colorMap = {
@@ -377,8 +388,7 @@ Coded by www.creative-tim.com
       renderTable();
 
       // Simulation / API Polling Logic
-      // 로컬 테스트 시: "http://localhost:8000"
-      // 배포 시: "/api"
+      // 배포 시 (프록시 사용): "/api"
       const API_BASE_URL = "/api";
 
       // Start polling automatically
@@ -481,7 +491,7 @@ Coded by www.creative-tim.com
 
               groupedMap.set(record.image_id, {
                 uid: record.image_id, // Use image_id as unique key for grouping
-                id: record.image_id,
+                id: record.id, // Database ID (Integer)
                 time: timeStr,
                 confidence: record.confidence, // Base confidence (could be avg or max)
                 image: imageUrl,
@@ -512,6 +522,7 @@ Coded by www.creative-tim.com
 
                 groupedMap.get(record.image_id).defects.push({
                   type: det.defect_type || 'Unknown',
+                  confidence: det.confidence || 0,
                   bbox: bbox
                 });
               });
@@ -526,6 +537,7 @@ Coded by www.creative-tim.com
                 }
                 groupedMap.get(record.image_id).defects.push({
                   type: record.defect_type,
+                  confidence: record.confidence || 0,
                   bbox: bbox
                 });
                 groupedMap.get(record.image_id).confidence = record.confidence || 0;
@@ -599,7 +611,11 @@ Coded by www.creative-tim.com
 
         // Now draw BBoxes with new dimensions
         updateBBox(currentDefects);
+        // Now draw BBoxes with new dimensions
+        updateBBox(currentDefects);
       });
+
+      let currentLogConfidence = 0; // Global to store average confidence for revert
 
       // Click Event Handler
       $(document).on('click', '.defect-row', function () {
@@ -612,11 +628,12 @@ Coded by www.creative-tim.com
         $(this).addClass('table-active'); // Bootstrap class for highlighting
 
         const uid = $(this).data('id');
-        const selectedLog = defectLogs.find(log => log.uid == uid); // Loose equality for string/number match
+        selectedLog = defectLogs.find(log => log.uid == uid); // Loose equality for string/number match
 
         if (selectedLog) {
           // Store defects globally for the load handler
           currentDefects = selectedLog.defects;
+          currentLogConfidence = (!isNaN(selectedLog.confidence) && selectedLog.confidence !== null) ? selectedLog.confidence : 0;
 
           // Show loader and hide bboxes before setting src
           $('#image-loader').show();
@@ -637,10 +654,13 @@ Coded by www.creative-tim.com
           });
           const types = typesArr.join(', ');
 
+          const confVal = (currentLogConfidence * 100).toFixed(1);
+          const confStyle = currentLogConfidence < 0.6 ? 'color: red; font-weight: bold;' : '';
+
           detailsTitle.text(`${selectedLog.id} - ${types}`);
           detailsDesc.html(`
             <strong>Time:</strong> ${selectedLog.time}<br>
-            <strong>Confidence:</strong> ${(!isNaN(selectedLog.confidence) && selectedLog.confidence !== null) ? (selectedLog.confidence * 100).toFixed(1) + '%' : '-'}<br>
+            <strong>Confidence:</strong> <span id="main-confidence-val" style="${confStyle}">${confVal}%</span><br>
             <strong>Defect Count:</strong> ${selectedLog.defects.length}
           `);
 
@@ -679,11 +699,12 @@ Coded by www.creative-tim.com
           hash = type.charCodeAt(i) + ((hash << 5) - hash);
         }
 
-        const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
-        return '#' + "00000".substring(0, 6 - c.length) + c;
       }
 
-      let pendingBoxFeedbacks = {}; // Store feedback per box index {0: {type:..., label:..., comment:...}}
+      let feedbackQueue = []; // Array of { id, type, bboxIndex, label, comment, createdBy }
+
+      // Removed old individual input handlers (box-comment, feedback-memo) 
+      // because we only capture data on "Add to Queue" click now.
 
       // BBox Update Function
       function updateBBox(defects) {
@@ -762,119 +783,320 @@ Coded by www.creative-tim.com
 
       // Handle BBox Click
       $(document).on('click', '.bbox-div', function () {
-        // alert("Click detected on box index: " + $(this).data('index'));
         const index = $(this).data('index');
         const defect = currentDefects[index];
 
         if (!defect) return;
 
-        // UI Setup
-        $('#no-box-selected').hide();
-        $('#box-feedback-form').show();
-        $('#selected-box-info').text(`Selected: ${defect.type} (Conf: ${(currentDefects[index].confidence || 0).toFixed(2)})`);
-        $('#box-feedback-form').data('index', index); // Store active index
+        // Toggle Logic: If already selected, deselect
+        const currentSelected = $('#unified-feedback-form').data('bboxIndex');
+        if (currentSelected === index) {
+          // Deselect logic
 
-        // Load existing feedback if any
-        const fb = pendingBoxFeedbacks[index];
-        if (fb) {
-          $(`input[name="feedbackType"][value="${fb.type}"]`).prop('checked', true);
-          if (fb.type === 'tp_wrong_class') {
-            $('#correct-class-group').show();
-            $('#correct-class-select').val(fb.correct_label);
+          // Revert Reference Confidence
+          $('#main-confidence-val').text((currentLogConfidence * 100).toFixed(1) + '%');
+          if (currentLogConfidence < 0.6) {
+            $('#main-confidence-val').css({ 'color': 'red', 'font-weight': 'bold' });
           } else {
-            $('#correct-class-group').hide();
+            $('#main-confidence-val').css({ 'color': '', 'font-weight': '' });
           }
-          $('#box-comment').val(fb.comment || '');
+
+          resetUnifiedForm();
+
+          updateBBox(currentDefects); // Redraw
+          return;
+        }
+
+        // --- Select New Box ---
+
+        // Update Main Confidence Display
+        const boxConf = currentDefects[index].confidence || 0;
+        $('#main-confidence-val').text((boxConf * 100).toFixed(1) + '%');
+        if (boxConf < 0.6) {
+          $('#main-confidence-val').css({ 'color': 'red', 'font-weight': 'bold' });
         } else {
-          $('#fb-none').prop('checked', true);
-          $('#correct-class-group').hide();
-          $('#box-comment').val('');
+          $('#main-confidence-val').css({ 'color': '', 'font-weight': '' });
+        }
+
+        // Activate Unified Form for this Box
+        activateUnifiedForm(index, defect);
+
+        // Update BBox Visuals
+        updateBBox(currentDefects); // Redraw entire canvas
+        // Highlight logic handled in updateBBox via selected-box-active check? 
+        // No, updateBBox destroys and recreates. We need to set active class AFTER redraw?
+        // Or better: updateBBox should check 'unified-feedback-form' data.
+        // Actually, let's just use the class approach again.
+        // Wait, updateBBox() clears '#bbox-container'. So $(this) reference is lost if we call updateBBox().
+        // Correct approach: updateBBox should read the active index from state.
+        // For now, let's just find the new div and highlight it.
+        $(`.bbox-div[data-index="${index}"]`).addClass('selected-box-active');
+      });
+
+
+      // --- Unified Form & Queue Logic ---
+
+      function resetUnifiedForm() {
+        $('#unified-feedback-form')[0].reset();
+        $('#target-box-id').text('-');
+        $('#form-context-info').hide();
+        $('#cancel-selection-btn').hide();
+        $('#unified-feedback-form').removeData('bboxIndex');
+
+        // Set Default State (FN Mode)
+        $('#fb-fn').prop('checked', true).prop('disabled', false);
+        $('#fb-fp').prop('disabled', true);
+        $('#fb-wrong').prop('disabled', true);
+        $('#unified-correct-class-group').hide();
+        $('#unified-comment').attr('placeholder', 'Enter details for missing defect...');
+        $('#feedback-form-title').text('New Feedback (Global)');
+      }
+
+      function activateUnifiedForm(index, defect) {
+        resetUnifiedForm(); // Start clean
+
+        $('#unified-feedback-form').data('bboxIndex', index);
+        $('#target-box-id').text(index); // Or use defect type info?
+        $('#form-context-info').show();
+        $('#cancel-selection-btn').show();
+
+        // Set Box Mode
+        $('#fb-fn').prop('disabled', true); // Cannot be FN if box is selected
+        $('#fb-fp').prop('disabled', false).prop('checked', true); // Default to FP?
+        $('#fb-wrong').prop('disabled', false);
+
+        $('#unified-comment').attr('placeholder', `Feedback for ${defect.type}...`);
+        $('#feedback-form-title').text('Box Feedback');
+      }
+
+      // Handle Feedback Type Change (Unified)
+      $('input[name="feedbackTypeUnified"]').on('change', function () {
+        if ($(this).val() === 'tp_wrong_class') {
+          $('#unified-correct-class-group').show();
+        } else {
+          $('#unified-correct-class-group').hide();
         }
       });
 
-      // Handle Feedback Type Change
-      function applyLocalFeedback() {
-        const index = $('#box-feedback-form').data('index');
-        if (index === undefined) return;
+      // Add to Queue Button
+      $('#add-to-queue-btn').on('click', function () {
+        const bboxIndex = $('#unified-feedback-form').data('bboxIndex');
+        const type = $('input[name="feedbackTypeUnified"]:checked').val();
+        const comment = $('#unified-comment').val();
+        const correctLabel = $('#unified-correct-class-select').val();
+        const reviewer = $('#created-by-input').val();
 
-        const type = $('input[name="feedbackType"]:checked').val();
-        const comment = $('#box-comment').val();
+        if (!type) { alert('Please select a feedback type.'); return; }
 
-        // Show/Hide Correct Class Select
+        const item = {
+          id: Date.now(),
+          type: type,
+          comment: comment,
+          reviewer: reviewer,
+          bboxIndex: bboxIndex // undefined if global
+        };
+
         if (type === 'tp_wrong_class') {
-          $('#correct-class-group').show();
-        } else {
-          $('#correct-class-group').hide();
+          item.correctLabel = correctLabel;
         }
 
-        if (type === 'none') {
-          delete pendingBoxFeedbacks[index];
-        } else {
-          const fbItem = {
-            type: type,
-            comment: comment
-          };
-          if (type === 'tp_wrong_class') {
-            fbItem.correct_label = $('#correct-class-select').val();
+        // Store target_bbox immediately to ensure validity against current defects
+        if (bboxIndex !== undefined && currentDefects && currentDefects[bboxIndex]) {
+          const defect = currentDefects[bboxIndex];
+          if (defect && defect.bbox) {
+            const [x, y, w, h] = defect.bbox;
+            item.target_bbox = [x, y, x + w, y + h]; // Store [x1, y1, x2, y2]
           }
-          pendingBoxFeedbacks[index] = fbItem;
         }
 
-        // Update UI Immediately
-        updateBBox(currentDefects);
-        const count = Object.keys(pendingBoxFeedbacks).length;
-        $('#feedback-summary').text(`${count} Box Selected`);
-      }
+        feedbackQueue.push(item);
+        renderQueue();
 
-      // Handle Feedback Type Change
-      $('input[name="feedbackType"]').change(applyLocalFeedback);
-
-      // Save/Update Box Feedback (Local State)
-      $('#save-box-feedback').click(function () {
-        const index = $('#box-feedback-form').data('index');
-        // console.log("Saving feedback for index:", index);
-        if (index === undefined) return;
-
-        const type = $('input[name="feedbackType"]:checked').val();
-        const comment = $('#box-comment').val();
-
-        if (type === 'none') {
-          delete pendingBoxFeedbacks[index];
-        } else {
-          const fbItem = {
-            type: type,
-            comment: comment
-          };
-          if (type === 'tp_wrong_class') {
-            fbItem.correct_label = $('#correct-class-select').val();
-          }
-          pendingBoxFeedbacks[index] = fbItem;
+        // Reset after adding
+        $('.bbox-div').removeClass('selected-box-active');
+        $('#main-confidence-val').css({ 'color': '', 'font-weight': '' });
+        // Revert Main Confidence Display to Log Average ?
+        $('#main-confidence-val').text((currentLogConfidence * 100).toFixed(1) + '%');
+        if (currentLogConfidence < 0.6) {
+          $('#main-confidence-val').css({ 'color': 'red', 'font-weight': 'bold' });
         }
 
-        // console.log("Current Pending Feedbacks:", pendingBoxFeedbacks);
-
-        // Update UI
-        updateBBox(currentDefects); // Redraw
-
-        const count = Object.keys(pendingBoxFeedbacks).length;
-        $('#feedback-summary').text(`${count} box correction(s)`);
-
-        // alert("Box updated! feedback count: " + count);
+        resetUnifiedForm();
       });
 
-      // Clear pending when log changes
-      function clearFeedbackState() {
-        pendingBoxFeedbacks = {};
-        $('#no-box-selected').show();
-        $('#box-feedback-form').hide();
-        $('#feedback-summary').text('0 box corrections');
-        $('#feedback-memo').val('');
+      // Cancel Selection Button
+      $('#cancel-selection-btn').on('click', function () {
+        $('.bbox-div').removeClass('selected-box-active');
+
+        // Revert Confidence
+        $('#main-confidence-val').text((currentLogConfidence * 100).toFixed(1) + '%');
+        if (currentLogConfidence < 0.6) {
+          $('#main-confidence-val').css({ 'color': 'red', 'font-weight': 'bold' });
+        }
+
+        resetUnifiedForm();
+      });
+
+      // Render Queue
+      function renderQueue() {
+        const list = $('#feedback-queue-list');
+        list.empty();
+        $('#queue-count').text(feedbackQueue.length);
+        // REMOVED: $('#submit-queue-btn').prop('disabled', feedbackQueue.length === 0);
+
+        if (feedbackQueue.length === 0) {
+          list.append('<li class="list-group-item text-muted text-center" style="font-size: 12px;">No items pending</li>');
+          return;
+        }
+
+        feedbackQueue.forEach((item, idx) => {
+          let label = '';
+          let badgeClass = 'badge-secondary';
+          let typeText = item.type;
+
+          if (item.type === 'false_negative') {
+            label = 'Global (FN)';
+            badgeClass = 'badge-warning';
+            typeText = 'False Negative';
+          } else if (item.type === 'false_positive') {
+            label = `Box #${item.bboxIndex}`;
+            badgeClass = 'badge-danger';
+            typeText = 'False Positive';
+          } else if (item.type === 'tp_wrong_class') {
+            label = `Box #${item.bboxIndex}`;
+            badgeClass = 'badge-info';
+            typeText = `Wrong -> ${item.correctLabel}`;
+          }
+
+          const li = `
+                  <li class="list-group-item p-2" style="font-size: 12px;">
+                      <div class="d-flex justify-content-between align-items-center mb-1">
+                          <span class="badge ${badgeClass}">${typeText}</span>
+                          <button class="btn btn-sm btn-outline-danger py-0 px-1 delete-queue-item" data-id="${item.id}">&times;</button>
+                      </div>
+                      <div class="text-muted small"><strong>Target:</strong> ${label}</div>
+                      ${item.comment ? `<div class="text-dark small border-left pl-2 mt-1" style="border-width:2px !important;">${item.comment}</div>` : ''}
+                  </li>
+              `;
+          list.append(li);
+        });
       }
 
+      // Delete Queue Item
+      $(document).on('click', '.delete-queue-item', function () {
+        const id = $(this).data('id');
+        feedbackQueue = feedbackQueue.filter(i => i.id !== id);
+        renderQueue();
+      });
 
+      // Submit Queue
+      $('#submit-queue-btn').on('click', function () {
+        console.log("Submit button clicked");
 
+        if (!selectedLog) {
+          alert("Error: No defect log selected. Please select a row from the table below.");
+          return;
+        }
 
+        if (feedbackQueue.length === 0) {
+          alert("Queue is empty. Please add feedback items to the queue before submitting.");
+          return;
+        }
 
+        const globalReviewer = $('#created-by-input').val();
+        const img = document.getElementById('main-image');
+
+        // Validation: Ensure image is loaded for dimensions
+        if (!img || !img.naturalWidth) {
+          alert("Error: Image not fully loaded. Please wait or re-select the log.");
+          return;
+        }
+
+        const payload = {
+          log_id: Number(selectedLog.id), // Ensure Interger
+          image_width: img.naturalWidth,  // Required by backend
+          image_height: img.naturalHeight,// Required by backend
+          created_by: globalReviewer || 'Anonymous',
+          feedbacks: []
+        };
+
+        feedbackQueue.forEach(item => {
+          let finalLabel = null;
+          if (item.correctLabel) {
+            finalLabel = item.correctLabel.toLowerCase().trim().replace(/\s+/g, '_');
+          }
+
+          const fb = {
+            feedback_type: item.type,
+            comment: item.comment,
+            correct_label: finalLabel, 
+            
+            
+            target_bbox: (Array.isArray(item.target_bbox) && item.target_bbox.length === 4)
+              ? item.target_bbox
+              : null
+          };
+
+          payload.feedbacks.push(fb);
+        });
+
+        console.log("Submitting:", payload);
+
+        // 1. Loading State
+        const $btn = $('#submit-queue-btn');
+        const originalText = $btn.text();
+        $btn.text('Submitting...').prop('disabled', true);
+
+        $.ajax({
+          url: `${API_BASE_URL}/feedback/bulk`,
+          method: 'POST',
+          contentType: 'application/json',
+          dataType: 'json',
+          data: JSON.stringify(payload),
+          success: function (resp) {
+            // 2. Success Feedback
+            alert("Feedback Submitted Successfully!\nID: " + resp.log_id);
+
+            // Reset UI
+            feedbackQueue = [];
+            renderQueue();
+
+            // Clear inputs
+            $('#unified-comment').val('');
+            // $('#created-by-input').val(''); 
+
+            // Reset Button
+            $btn.text(originalText).prop('disabled', false);
+
+            $('#feedback-queue-list').html('<li class="list-group-item text-success text-center"><strong>Submitted!</strong></li>');
+            setTimeout(renderQueue, 2000);
+          },
+          error: function (err) {
+            console.error("Submission Error:", err);
+
+            // --- ENHANCED LOGGING (Force Display) ---
+            let errorDetails = "Unknown Error";
+
+            try {
+              if (err.responseJSON) {
+                errorDetails = JSON.stringify(err.responseJSON, null, 2);
+              } else if (err.responseText) {
+                errorDetails = err.responseText.substring(0, 800); // Show more
+              } else {
+                errorDetails = err.statusText + " (" + err.status + ")";
+              }
+            } catch (e) {
+              errorDetails = "Error parsing response: " + e.message;
+            }
+
+            alert("Submission Failed!\n\n=== SERVER LOG ===\n" + errorDetails);
+
+            // Reset Button on error
+            $btn.text(originalText).prop('disabled', false);
+          }
+        });
+
+      });
       // Toggle Event
       $('#bboxToggle').change(function () {
         const activeRow = $('.table-active');
@@ -888,101 +1110,8 @@ Coded by www.creative-tim.com
       // Select first item by default
       $('.defect-row').first().click();
 
-      // Feedback Submission Logic
-      // Feedback Submission Logic
-      $('#send-feedback-btn').click(async function () {
-        // Get active log ID
-        const activeRow = $('.table-active');
-        if (activeRow.length === 0) {
-          alert("Please select a log entry first.");
-          return;
-        }
 
-        const uid = activeRow.data('id');
-        const selectedLog = defectLogs.find(log => log.uid == uid);
 
-        if (!selectedLog) {
-          alert("Selected log data not found.");
-          return;
-        }
-
-        const memo = $('#feedback-memo').val();
-
-        // Collect Box Feedbacks
-        const feedbacks = [];
-
-        if (pendingBoxFeedbacks) {
-          Object.keys(pendingBoxFeedbacks).forEach(index => {
-            const fb = pendingBoxFeedbacks[index];
-            const originalDefect = selectedLog.defects[index];
-            if (originalDefect && originalDefect.bbox) {
-              // Convert xywh to xyxy
-              const x = originalDefect.bbox[0];
-              const y = originalDefect.bbox[1];
-              const w = originalDefect.bbox[2];
-              const h = originalDefect.bbox[3];
-              const x2 = x + w;
-              const y2 = y + h;
-
-              feedbacks.push({
-                feedback_type: fb.type,
-                correct_label: fb.correct_label || null,
-                comment: fb.comment || null,
-                target_bbox: [x, y, x2, y2]
-              });
-            }
-          });
-        }
-
-        if (feedbacks.length === 0 && (!memo || memo.trim() === "")) {
-          alert("피드백 정보가 없습니다. 박스를 수정하거나 코멘트를 입력해주세요.");
-          return;
-        }
-
-        // Prepare Payload
-        const img = document.getElementById('main-image');
-
-        // Safety check for log_id
-        let safeLogId = parseInt(selectedLog.id);
-        if (isNaN(safeLogId)) {
-          console.warn("Log ID is NaN or missing, defaulting to 1 for test", selectedLog);
-          safeLogId = 1; // Fallback to satisfy gt=0 constraint if real ID is missing
-        }
-
-        const payload = {
-          log_id: safeLogId,
-          image_width: img.naturalWidth || 800, // Fallback if not loaded
-          image_height: img.naturalHeight || 600,
-          feedbacks: feedbacks,
-          false_negative_memo: memo || null,
-          created_by: "dashboard_user"
-        };
-
-        try {
-          const response = await fetch(`${API_BASE_URL}/feedback/bulk`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
-          });
-
-          if (response.ok) {
-            alert("Feedback submitted successfully!");
-            $('#feedback-memo').val(''); // Clear input
-            // Optional: clear box feedbacks too? User didn't ask, but good UX.
-            // But usually we might want to keep them visible until refresh?
-            // User flow: Submit -> Done.
-          } else {
-            const errData = await response.json();
-            console.error("Feedback Error Details:", errData);
-            alert(`Error submitting feedback: ${JSON.stringify(errData, null, 2)}`);
-          }
-        } catch (error) {
-          console.error("Feedback error:", error);
-          alert("Network error submitting feedback.");
-        }
-      });
     });
   </script>
 </body>
