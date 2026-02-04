@@ -159,7 +159,8 @@ async def copy_to_needs_labeling(
     image_s3_key: str,
     log_id: int,
     fn_comments: List[str],
-    original_detections: Optional[List[Dict]] = None
+    original_detections: Optional[List[Dict]] = None,
+    bbox_feedbacks: Optional[List[Dict]] = None
 ) -> None:
     """
     FALSE_NEGATIVE 이미지를 needs_labeling/ 폴더에 복사
@@ -169,6 +170,7 @@ async def copy_to_needs_labeling(
         log_id: 검사 로그 ID
         fn_comments: FALSE_NEGATIVE 코멘트 목록 (다중 지원)
         original_detections: 원본 AI 예측 결과 (선택)
+        bbox_feedbacks: FP/tp_wrong_class 피드백 목록 (선택)
     """
     bucket = settings.S3_BUCKET_NAME
     original_filename = image_s3_key.split("/")[-1]
@@ -186,13 +188,14 @@ async def copy_to_needs_labeling(
         logger.error(f"[S3] Failed to copy image to needs_labeling: {image_s3_key}, error: {e}")
         raise
 
-    # 2. 메타데이터 JSON 생성 (다중 FN 코멘트 지원)
+    # 2. 메타데이터 JSON 생성 (FN 코멘트 + FP/tp_wrong_class 피드백 포함)
     metadata = {
         "log_id": log_id,
         "original_s3_key": image_s3_key,
         "false_negative_comments": fn_comments,
         "false_negative_count": len(fn_comments),
         "original_detections": original_detections or [],
+        "bbox_feedbacks": bbox_feedbacks or [],
         "created_at": datetime.now().isoformat()
     }
 

@@ -239,7 +239,8 @@ async def create_bulk_feedback(request: BulkFeedbackRequest):
                     image_s3_key=image_s3_key,
                     log_id=request.log_id,
                     fn_comments=fn_comments,
-                    original_detections=original_detections
+                    original_detections=original_detections,
+                    bbox_feedbacks=non_fn_feedbacks
                 )
             except Exception as e:
                 logger.error(f"[S3] Failed to copy to needs_labeling for log_id={request.log_id}: {e}")
