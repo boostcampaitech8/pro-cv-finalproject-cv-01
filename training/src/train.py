@@ -234,6 +234,9 @@ class PCBTrainer:
             cls=self.config.get('cls', 0.5),
             dfl=self.config.get('dfl', 1.5),
             
+            # Special Control
+            close_mosaic=self.config.get('close_mosaic', 10),
+            
             verbose=False,  # Disable default TQDM bar (We are using manual)
             val=True       # Enable validation
         )
@@ -255,6 +258,7 @@ class PCBTrainer:
         Loads the best model and runs a final validation to print comprehensive metrics.
         """
         import os
+        import mlflow
         from ultralytics import YOLO
         
         # Ensure trainer and save_dir exist

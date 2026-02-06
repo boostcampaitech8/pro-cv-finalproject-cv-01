@@ -233,6 +233,7 @@ class PCBDataset:
             'path': self.data_path,
             'train': train_txt,
             'val': val_txt,
+            'test': os.path.join(self.data_path, 'test_images.txt'),
             'names': {i: name for i, name in enumerate(self.classes)}
         }
         
