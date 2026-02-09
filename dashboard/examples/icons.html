@@ -1,0 +1,1143 @@
+<!--
+=========================================================
+* Paper Dashboard 2 - v2.0.1
+=========================================================
+
+* Product Page: https://www.creative-tim.com/product/paper-dashboard-2
+* Copyright 2020 Creative Tim (https://www.creative-tim.com)
+
+Coded by www.creative-tim.com
+
+ =========================================================
+
+* The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <link rel="apple-touch-icon" sizes="76x76" href="../assets/img/apple-icon.png">
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍇</text></svg>">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+  <title>
+    PODO
+  </title>
+  <meta content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, shrink-to-fit=no'
+    name='viewport' />
+  <!--     Fonts and icons     -->
+  <link href="https://fonts.googleapis.com/css?family=Montserrat:400,700,200" rel="stylesheet" />
+  <link href="https://maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css" rel="stylesheet">
+  <!-- CSS Files -->
+  <link href="../assets/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="../assets/css/paper-dashboard.css?v=2.0.1" rel="stylesheet" />
+  <!-- CSS Just for demo purpose, don't include it in your project -->
+  <link href="../assets/demo/demo.css" rel="stylesheet" />
+  <style>
+    /* Loading Spinner Styles */
+    .loader {
+      border: 5px solid #f3f3f3;
+      /* Light grey */
+      border-top: 5px solid #66615b;
+      /* Grey */
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      margin-top: -25px;
+      /* Half of height */
+      margin-left: -25px;
+      /* Half of width */
+      z-index: 10;
+      display: none;
+      /* Hidden by default */
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+
+<body class="">
+  <div class="wrapper ">
+    <div class="sidebar" data-color="white" data-active-color="danger">
+      <div class="logo">
+        <a href="./dashboard.html" class="simple-text logo-mini">
+          <div class="logo-image-small">
+            <img
+              src="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text x=%2250%22 y=%2255%22 font-size=%2280%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22>🐝</text></svg>">
+          </div>
+        </a>
+        <a href="./dashboard.html" class="simple-text logo-normal">
+          Merby
+        </a>
+      </div>
+      <div class="sidebar-wrapper">
+        <ul class="nav">
+          <li>
+            <a href="./dashboard.html">
+              <i class="nc-icon nc-layout-11"></i>
+              <p>Dashboard</p>
+            </a>
+          </li>
+          <li class="active ">
+            <a href="./icons.html">
+              <i class="nc-icon nc-zoom-split"></i>
+              <p>Defect Logs</p>
+            </a>
+          </li>
+          <li>
+            <a href="./health.html">
+              <i class="nc-icon nc-favourite-28"></i>
+              <p>System Health</p>
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+    <div class="main-panel">
+      <!-- Navbar -->
+      <nav class="navbar navbar-expand-lg navbar-absolute fixed-top navbar-transparent">
+        <div class="container-fluid">
+          <div class="navbar-wrapper">
+            <div class="navbar-toggle">
+              <button type="button" class="navbar-toggler">
+                <span class="navbar-toggler-bar bar1"></span>
+                <span class="navbar-toggler-bar bar2"></span>
+                <span class="navbar-toggler-bar bar3"></span>
+              </button>
+            </div>
+            <a class="navbar-brand" href="javascript:;">PCB dashboard</a>
+          </div>
+          <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navigation"
+            aria-controls="navigation-index" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-bar navbar-kebab"></span>
+            <span class="navbar-toggler-bar navbar-kebab"></span>
+            <span class="navbar-toggler-bar navbar-kebab"></span>
+          </button>
+          <div class="collapse navbar-collapse justify-content-end" id="navigation">
+            <!-- 세션 선택 드롭다운 -->
+            <ul class="navbar-nav">
+              <li class="nav-item d-flex align-items-center mr-3">
+                <div id="alert-banner-container"></div>
+              </li>
+              <li class="nav-item">
+                <div class="form-group mb-0" style="margin-top: 8px;">
+                  <select class="form-control" id="session-select" style="width: 250px; height: 38px;">
+                    <option value="">All Sessions (전체)</option>
+                  </select>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </nav>
+      <!-- End Navbar -->
+      <div class="content">
+        <div class="row">
+          <div class="col-md-8" style="flex: 0 0 60%; max-width: 60%;">
+            <div class="card h-100">
+              <div class="card-header">
+                <h5 class="card-title">Defect Image Viewer</h5>
+              </div>
+              <div class="card-body">
+                <div class="image-container"
+                  style="position: relative; width: 100%; height: 600px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 12px; padding: 10px;">
+                  <div id="image-loader" class="loader"></div>
+                  <img id="main-image" src="" alt="Select a defect log to view image" style="display: none;">
+                  <div id="bbox-container"
+                    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
+                </div>
+                <div class="mt-3 d-flex justify-content-between align-items-center">
+                  <div>
+                    <h6 id="image-details-title">Select a log entry to see details</h6>
+                    <p id="image-details-desc">-</p>
+                  </div>
+                  <div class="custom-control custom-switch">
+                    <input type="checkbox" class="custom-control-input" id="bboxToggle" checked>
+                    <label class="custom-control-label" for="bboxToggle">Show BBox</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4" style="flex: 0 0 40%; max-width: 40%;">
+            <div class="card h-100">
+              <div class="card-header">
+                <h5 class="card-title">Recent Defects Log </h5>
+              </div>
+              <div class="card-body d-flex flex-column">
+                <div class="table-full-width table-responsive flex-grow-1" style="overflow-y: auto; height: 660px;">
+                  <table class="table">
+                    <thead class="text-primary" style="text-align: center;">
+                      <th style="width: 40px; font-size: 12px;">#</th>
+                      <th style="width: 75px; font-size: 12px;">Time</th>
+                      <th style="font-size: 12px;">Type</th>
+                      <th style="width: 80px; font-size: 12px;">Image ID</th>
+                    </thead>
+                    <tbody id="defect-log-table-body">
+                      <!-- Rows will be populated by JS -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- 세션 선택 드롭다운 -->
+
+        </div>
+
+        <!-- Bottom Row: Unified Feedback System (Side-by-Side) -->
+        <div class="row" style="margin-top: 30px;">
+          <!-- Left Sub-col: Unified Input Form (Wider) -->
+          <div class="col-md-8" style="flex: 0 0 60%; max-width: 60%;">
+            <div class="card" style="height: 320px;">
+              <div class="card-header">
+                <h5 class="card-title" id="feedback-form-title">Feedback</h5>
+              </div>
+              <div class="card-body">
+                <form id="unified-feedback-form">
+                  <!-- Context Info -->
+                  <div class="alert alert-secondary" id="form-context-info"
+                    style="font-size: 12px; padding: 5px; display:none;">
+                    Target: Box #<span id="target-box-id">-</span>
+                  </div>
+
+                  <div class="row">
+                    <!-- Left: Type Selection -->
+                    <div class="col-md-5 border-right">
+                      <div class="form-group">
+                        <label>Feedback Type</label>
+                        <div class="custom-controls-stacked">
+                          <!-- Global Default -->
+                          <div class="custom-control custom-radio">
+                            <input type="radio" id="fb-fn" name="feedbackTypeUnified" class="custom-control-input"
+                              value="false_negative" checked>
+                            <label class="custom-control-label" for="fb-fn" style="font-size: 15px;">False Negative
+                              (Missed)</label>
+                          </div>
+                          <!-- Box Specific (Enabled only when box selected) -->
+                          <div class="custom-control custom-radio">
+                            <input type="radio" id="fb-fp" name="feedbackTypeUnified" class="custom-control-input"
+                              value="false_positive" disabled>
+                            <label class="custom-control-label" for="fb-fp" style="font-size: 15px;">False Positive (Not
+                              Defect)</label>
+                          </div>
+                          <div class="custom-control custom-radio">
+                            <input type="radio" id="fb-wrong" name="feedbackTypeUnified" class="custom-control-input"
+                              value="tp_wrong_class" disabled>
+                            <label class="custom-control-label" for="fb-wrong" style="font-size: 15px;">Wrong
+                              Class</label>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="form-group" id="unified-correct-class-group" style="display: none;">
+                        <label>Correct Class</label>
+                        <select class="form-control form-control-sm" id="unified-correct-class-select">
+                          <option value="Missing Hole">Missing Hole</option>
+                          <option value="Mouse Bite">Mouse Bite</option>
+                          <option value="Open Circuit">Open Circuit</option>
+                          <option value="Short">Short</option>
+                          <option value="Spur">Spur</option>
+                          <option value="Spurious Copper">Spurious Copper</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <!-- Right: Details -->
+                    <div class="col-md-7">
+                      <div class="form-group">
+                        <label>Reviewer Name</label>
+                        <input type="text" class="form-control form-control-sm" id="created-by-input"
+                          placeholder="Name">
+                      </div>
+
+                      <div class="form-group">
+                        <label>Comment</label>
+                        <textarea class="form-control" id="unified-comment" rows="3"
+                          placeholder="Enter details..."></textarea>
+                      </div>
+
+                      <div class="text-right mt-2">
+                        <button type="button" class="btn btn-sm btn-secondary" id="cancel-selection-btn"
+                          style="display:none;">Cancel Box</button>
+                        <button type="button" class="btn btn-sm btn-success" id="add-to-queue-btn">Add to
+                          Queue</button>
+                      </div>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Sub-col: Feedback Queue (Narrower) -->
+          <div class="col-md-4" style="flex: 0 0 40%; max-width: 40%;">
+            <div class="card" style="height: 320px; display: flex; flex-direction: column;">
+              <div class="card-header">
+                <h5 class="card-title">
+                  Pending Queue <span class="badge badge-info" id="queue-count">0</span>
+                </h5>
+              </div>
+
+              <div class="card-body p-2" style="flex: 1; overflow-y: auto;">
+                <ul class="list-group list-group-flush" id="feedback-queue-list">
+                  <li class="list-group-item text-muted text-center" id="empty-queue-msg" style="font-size: 15px;">
+                    No items pending
+                  </li>
+                </ul>
+              </div>
+
+              <div class="card-footer p-2">
+                <button type="button" class="btn btn-primary btn-block btn-sm" id="submit-queue-btn">Submit All</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <!--   Core JS Files   -->
+  <script src="../assets/js/core/jquery.min.js"></script>
+  <script src="../assets/js/core/popper.min.js"></script>
+  <script src="../assets/js/core/bootstrap.min.js"></script>
+  <script src="../assets/js/plugins/perfect-scrollbar.jquery.min.js"></script>
+  <!--  Google Maps Plugin    -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_KEY_HERE"></script>
+  <!-- Chart JS -->
+  <script src="../assets/js/plugins/chartjs.min.js"></script>
+  <!--  Notifications Plugin    -->
+  <script src="../assets/js/plugins/bootstrap-notify.js"></script>
+  <!-- Control Center for Now Ui Dashboard: parallax effects, scripts for the example pages etc -->
+  <script src="../assets/js/paper-dashboard.min.js?v=2.0.1" type="text/javascript"></script>
+  <!-- Paper Dashboard DEMO methods, don't include it in your project! -->
+  <script src="../assets/demo/demo.js"></script>
+  <!-- API Client -->
+  <script src="../assets/js/api-client.js?v=6"></script>
+  <script>
+    $(document).ready(function () {
+      // Dummy Data for Defect Logs (Mocking API Response)
+      // Dummy Data for Defect Logs (Mocking API Response)
+      // Updated to support multiple defects per image
+      const defectLogs = []; // Cleared for API usage
+      let currentDefects = []; // Store currently selected defects for redraw on resize/load
+      let selectedLog = null; // Defined globally for submission access
+
+      const tableBody = $('#defect-log-table-body');
+      const mainImage = $('#main-image');
+      const detailsTitle = $('#image-details-title');
+      const detailsDesc = $('#image-details-desc');
+
+
+      // Color mapping for defect types
+      const colorMap = {
+        'Missing Hole': 'red',
+        'Mouse Bite': 'orange',
+        'Open Circuit': 'blue',
+        'Short': 'purple',
+        'Spur': 'green',
+        'Spurious Copper': 'brown'
+      };
+
+      // Populate Table Function
+      function renderTable() {
+        tableBody.empty();
+        defectLogs.forEach(log => {
+          // Count occurrences of each defect type
+          const typeCounts = log.defects.reduce((acc, d) => {
+            acc[d.type] = (acc[d.type] || 0) + 1;
+            return acc;
+          }, {});
+
+          // Format string: "Type (Count)" or just "Type"
+          let typesArr = Object.entries(typeCounts).map(([type, count]) => {
+            return count > 1 ? `${type} (${count})` : type;
+          });
+
+          let types = typesArr.join(', ');
+
+          // --- [색상 결정 로직 수정됨] ---
+          let typeClass = '';
+
+          if (log.defects.length === 0) {
+            // 1. Normal (정상) -> 초록색
+            types = "Normal";
+            typeClass = "text-success";
+          } else {
+            // 2. Defect (불량) 있는 경우
+            // 결함 박스들 중 하나라도 confidence가 0.6(60%) 미만인지 확인
+            const hasLowConfidence = log.defects.some(d => d.confidence < 0.6);
+
+            if (hasLowConfidence) {
+              // 60% 미만인 게 하나라도 있으면 -> 빨간색 (위험/재확인 필요)
+              typeClass = "text-danger";
+            } else {
+              // 모두 60% 이상이면 -> 주황색 (확실한 불량)
+              typeClass = "text-warning";
+            }
+          }
+          // -----------------------------
+
+          // 세션 ID 표시 (없으면 '-')
+          const sessionDisplay = log.session_id ? `${log.session_id}` : '-';
+
+          const row = `
+              <tr class="defect-row" style="cursor: pointer; font-size: 13px; text-align: center;" data-id="${log.uid}">
+                <td class="text-muted" style="font-size: 11px;">${sessionDisplay}</td>
+                <td>${log.time}</td>
+                <td class="${typeClass}">
+                  <div style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; max-height: 3em; line-height: 1.5; font-weight: bold;">
+                    ${types}
+                  </div>
+                </td>
+                <td class="text-primary" style="font-size: 12px;">${log.id}</td>
+              </tr>
+            `;
+          tableBody.append(row);
+        });
+      }
+
+      // Initial Render
+      renderTable();
+
+      // Simulation / API Polling Logic
+      // 배포 시 (프록시 사용): "/api"
+      const API_BASE_URL = "/api";
+
+      // Start polling automatically
+      // Start polling automatically
+      initSessionSelector();
+      // fetchLogs called inside initSessionSelector or after it
+
+      // Session Management Logic
+      async function initSessionSelector() {
+        const selector = document.getElementById("session-select");
+        if (!selector) return;
+
+        // Load Sessions
+        // Now ApiClient should be available
+        if (typeof ApiClient !== 'undefined') {
+          const result = await ApiClient.getSessions();
+          if (result && result.sessions) {
+            result.sessions.forEach((session) => {
+              const option = document.createElement("option");
+              option.value = session.id;
+
+              // Simple date formatting
+              // Helper to format date
+              const formatDate = (dateStr) => {
+                if (!dateStr) return "Active";
+                const d = new Date(dateStr);
+                const m = String(d.getMonth() + 1).padStart(2, "0");
+                const da = String(d.getDate()).padStart(2, "0");
+                const h = String(d.getHours()).padStart(2, "0");
+                const min = String(d.getMinutes()).padStart(2, "0");
+                return `${m}/${da} ${h}:${min}`;
+              };
+
+              const startTime = formatDate(session.started_at);
+              const endTime = session.ended_at ? formatDate(session.ended_at) : "Active";
+
+              option.textContent = `#${session.id} (${startTime} - ${endTime})`;
+              selector.appendChild(option);
+            });
+          }
+        }
+
+        // Restore from localStorage
+        const savedSession = localStorage.getItem("dashboard_selected_session");
+        if (savedSession) {
+          const exists = Array.from(selector.options).some(opt => opt.value === savedSession);
+          if (exists) {
+            selector.value = savedSession;
+          }
+        }
+
+        // Initial Fetch
+        fetchLogs();
+
+        // Polling
+        setInterval(fetchLogs, 2000);
+
+        // Change Event
+        selector.addEventListener("change", (e) => {
+          const val = e.target.value;
+          if (val) {
+            localStorage.setItem("dashboard_selected_session", val);
+          } else {
+            localStorage.removeItem("dashboard_selected_session");
+          }
+          fetchLogs(); // Refetch immediately
+        });
+      }
+
+      async function fetchLogs() {
+        try {
+          const selector = document.getElementById("session-select");
+          const sessionId = selector ? selector.value : "";
+
+          let url = `${API_BASE_URL}/latest?limit=50`;
+          if (sessionId) {
+            url += `&session_id=${sessionId}`;
+          }
+
+          const response = await fetch(url);
+          if (!response.ok) throw new Error('API Network response was not ok');
+
+          const data = await response.json();
+          if (!data) return;
+
+          // Group by image_id
+          const groupedMap = new Map();
+
+          data.forEach(record => {
+            if (!groupedMap.has(record.image_id)) {
+              // Format Time
+              const dateObj = new Date(record.timestamp);
+              const timeStr = dateObj.toTimeString().split(' ')[0];
+
+              // Construct Image URL
+              let imageUrl = '../assets/img/logo-small.png';
+              if (record.image_path) {
+                imageUrl = `${API_BASE_URL}/${record.image_path.replace(/\\/g, '/')}`;
+              }
+
+              groupedMap.set(record.image_id, {
+                uid: record.image_id, // Use image_id as unique key for grouping
+                id: record.id, // Database ID (Integer)
+                time: timeStr,
+                confidence: record.confidence, // Base confidence (could be avg or max)
+                image: imageUrl,
+                session_id: record.session_id, // 세션 ID 추가
+                defects: []
+              });
+            } else {
+              // Existing group: Check if we can update the image if it's currently a placeholder
+              const existing = groupedMap.get(record.image_id);
+              if (record.image_path && existing.image.includes('logo-small.png')) {
+                existing.image = `${API_BASE_URL}/${record.image_path.replace(/\\/g, '/')}`;
+              }
+            }
+
+            // Map Defects from 'detections' array
+            if (record.detections && record.detections.length > 0) {
+              // Update confidence to the average confidence of detections
+              const totalConf = record.detections.reduce((sum, d) => sum + d.confidence, 0);
+              const avgConf = totalConf / record.detections.length;
+              groupedMap.get(record.image_id).confidence = avgConf;
+
+              record.detections.forEach(det => {
+                let bbox = [0, 0, 0, 0];
+                if (det.bbox && det.bbox.length === 4) {
+                  const [x1, y1, x2, y2] = det.bbox;
+                  bbox = [x1, y1, x2 - x1, y2 - y1]; // Convert to [x, y, w, h]
+                }
+
+                groupedMap.get(record.image_id).defects.push({
+                  type: det.defect_type || 'Unknown',
+                  confidence: det.confidence || 0,
+                  bbox: bbox
+                });
+              });
+            } else if (record.result === 'defect') {
+              // Fallback for legacy or malformed data where result is defect but detections empty
+              // Check if flat fields exist (legacy support)
+              if (record.defect_type) {
+                let bbox = [0, 0, 0, 0];
+                if (record.bbox && record.bbox.length === 4) {
+                  const [x1, y1, x2, y2] = record.bbox;
+                  bbox = [x1, y1, x2 - x1, y2 - y1];
+                }
+                groupedMap.get(record.image_id).defects.push({
+                  type: record.defect_type,
+                  confidence: record.confidence || 0,
+                  bbox: bbox
+                });
+                groupedMap.get(record.image_id).confidence = record.confidence || 0;
+              }
+            }
+          });
+
+          // Convert Map to Array
+          const mappedLogs = Array.from(groupedMap.values());
+
+          if (mappedLogs.length > 0) {
+            // Save currently selected ID (UID)
+            const activeRow = $('.table-active');
+            const currentSelectedUid = activeRow.length > 0 ? activeRow.data('id') : null;
+
+            // Update global array
+            defectLogs.length = 0;
+            mappedLogs.forEach(l => defectLogs.push(l));
+
+            renderTable();
+
+            // Restore selection
+            let restored = false;
+            if (currentSelectedUid) {
+              // Use quotes for selector in case of special chars
+              const newRow = $(`.defect-row[data-id='${currentSelectedUid}']`);
+              if (newRow.length > 0) {
+                newRow.addClass('table-active');
+                restored = true;
+              }
+            }
+
+            // If nothing restored (was null or ID gone), select first
+            if (!restored && $('.table-active').length === 0) {
+              $('.defect-row').first().click();
+            }
+          }
+
+        } catch (error) {
+          console.error("Failed to fetch logs:", error);
+        }
+      }
+
+      function generateRandomLog() {
+        // Deprecated, kept empty or removed.
+      }
+
+      // Image Load Handler for Smart Resizing
+      mainImage.on('load', function () {
+        $('#image-loader').hide(); // Hide loader when image is ready
+        $(this).show(); // Show image
+        const img = this;
+        const container = $(this).parent();
+        const containerW = container.width(); // Inner width (minus padding)
+        const containerH = container.height(); // Inner height (minus padding)
+
+        // Reset styles to calculate natural size correctly if needed, 
+        // but naturalWidth/Height are independent of CSS.
+        // However, we need to set width/height CSS based on aspect ratio comparison.
+
+        const imgAR = img.naturalWidth / img.naturalHeight;
+        const containerAR = containerW / containerH;
+
+        if (imgAR > containerAR) {
+          // Image is wider than container: Fit to Width
+          $(img).css({ 'width': '100%', 'height': 'auto' });
+        } else {
+          // Image is taller than container: Fit to Height
+          $(img).css({ 'width': 'auto', 'height': '100%' });
+        }
+
+        // Now draw BBoxes with new dimensions
+        updateBBox(currentDefects);
+        // Now draw BBoxes with new dimensions
+        updateBBox(currentDefects);
+      });
+
+      let currentLogConfidence = 0; // Global to store average confidence for revert
+
+      // Click Event Handler
+      $(document).on('click', '.defect-row', function () {
+        // Clear previous feedback state
+        if (typeof clearFeedbackState === 'function') clearFeedbackState();
+        else pendingBoxFeedbacks = {}; // Fallback
+
+        // Highlight selected row
+        $('.defect-row').removeClass('table-active'); // Remove formatting from others
+        $(this).addClass('table-active'); // Bootstrap class for highlighting
+
+        const uid = $(this).data('id');
+        selectedLog = defectLogs.find(log => log.uid == uid); // Loose equality for string/number match
+
+        if (selectedLog) {
+          // Store defects globally for the load handler
+          currentDefects = selectedLog.defects;
+          currentLogConfidence = (!isNaN(selectedLog.confidence) && selectedLog.confidence !== null) ? selectedLog.confidence : 0;
+
+          // Show loader and hide bboxes before setting src
+          $('#image-loader').show();
+          // mainImage.hide(); // Keep existing image visible until new one loads
+          $('#bbox-container').empty(); // Clear previous bboxes
+
+          // Update Image - This triggers the 'load' event
+          mainImage.attr('src', selectedLog.image);
+
+          // Update Details - Use Counting Logic
+          const typeCounts = selectedLog.defects.reduce((acc, d) => {
+            acc[d.type] = (acc[d.type] || 0) + 1;
+            return acc;
+          }, {});
+
+          const typesArr = Object.entries(typeCounts).map(([type, count]) => {
+            return count > 1 ? `${type} (${count})` : type;
+          });
+          const types = typesArr.join(', ');
+
+          const confVal = (currentLogConfidence * 100).toFixed(1);
+          const confStyle = (currentLogConfidence < 0.6 && currentLogConfidence > 0.0) ? 'color: red; font-weight: bold;' : '';
+
+          detailsTitle.text(`${selectedLog.id} - ${types}`);
+          detailsDesc.html(`
+            <strong>Time:</strong> ${selectedLog.time}<br>
+            <strong>Confidence:</strong> <span id="main-confidence-val" style="${confStyle}">${confVal}%</span><br>
+            <strong>Defect Count:</strong> ${selectedLog.defects.length}
+          `);
+
+          // Note: updateBBox is NOT called here directly, it's called on image load
+          // But if src is same, load might not fire?
+          // If src is same, we might want to force update.
+          if (mainImage.attr('src') === selectedLog.image && mainImage[0].complete) {
+            // If image is already loaded and src matches (re-click), manually trigger load or just call update
+            // mainImage.trigger('load'); // Safe option
+          }
+        }
+      });
+
+      // Dynamic Color Generation
+      function getColor(type) {
+        if (!type) return 'red';
+
+        // Predefined colors for known PCB types
+        const knownColors = {
+          'Missing Hole': '#e6194b',
+          'Mouse Bite': '#3cb44b',
+          'Open Circuit': '#ffe119',
+          'Short': '#4363d8',
+          'Spur': '#f58231',
+          'Spurious Copper': '#911eb4',
+          'scratch': '#e6194b',
+          'dent': '#3cb44b',
+          'hole': '#ffe119'
+        };
+
+        if (knownColors[type]) return knownColors[type];
+
+        // Hash function for unknown types (e.g. 'person', 'bus')
+        let hash = 0;
+        for (let i = 0; i < type.length; i++) {
+          hash = type.charCodeAt(i) + ((hash << 5) - hash);
+        }
+
+      }
+
+      let feedbackQueue = []; // Array of { id, type, bboxIndex, label, comment, createdBy }
+
+      // Removed old individual input handlers (box-comment, feedback-memo) 
+      // because we only capture data on "Add to Queue" click now.
+
+      // BBox Update Function
+      function updateBBox(defects) {
+        const container = $('#bbox-container');
+        container.empty(); // Clear existing bboxes
+
+        const img = document.getElementById('main-image');
+        if (!img || !img.naturalWidth) return; // Wait for image to load
+
+        // Calculate Scale Factor
+        const scaleX = img.width / img.naturalWidth;
+        const scaleY = img.height / img.naturalHeight;
+
+        const offsetLeft = img.offsetLeft;
+        const offsetTop = img.offsetTop;
+
+        if ($('#bboxToggle').is(':checked') && defects && defects.length > 0) {
+          defects.forEach((defect, index) => {
+            const bbox = defect.bbox;
+            const color = getColor(defect.type);
+
+            // Apply scaling and offset
+            const finalX = offsetLeft + (bbox[0] * scaleX);
+            const finalY = offsetTop + (bbox[1] * scaleY);
+            const finalW = bbox[2] * scaleX;
+            const finalH = bbox[3] * scaleY;
+
+            // Check if this box has pending feedback
+            let borderStyle = '2px solid ' + color;
+            let displayType = defect.type;
+
+            if (pendingBoxFeedbacks[index]) {
+              const fb = pendingBoxFeedbacks[index];
+              if (fb.type === 'false_positive') {
+                borderStyle = '2px dashed red'; // FP visual
+                // keeping original displayType
+              } else if (fb.type === 'tp_wrong_class') {
+                borderStyle = '2px solid orange'; // Wrong Class visual
+                displayType = fb.correct_label;
+              }
+            }
+
+            const boxDiv = $('<div></div>')
+              .addClass('bbox-div')
+              .attr('data-index', index)
+              .css({
+                'position': 'absolute',
+                'left': finalX + 'px',
+                'top': finalY + 'px',
+                'width': finalW + 'px',
+                'height': finalH + 'px',
+                'border': borderStyle,
+                'cursor': 'pointer',
+                'pointer-events': 'auto',
+                'z-index': 9999, // Ensure on top
+                'background-color': 'rgba(255, 255, 255, 0.01)' // Ensure hit test works
+              });
+
+            const label = $('<span></span>').text(displayType).css({
+              'position': 'absolute',
+              'top': '-20px',
+              'left': '-2px',
+              'background-color': color,
+              'color': 'white',
+              'font-size': '10px',
+              'padding': '2px 4px',
+              'white-space': 'nowrap',
+              'z-index': 101
+            });
+
+            boxDiv.append(label);
+            container.append(boxDiv);
+          });
+        }
+      }
+
+      // Handle BBox Click
+      $(document).on('click', '.bbox-div', function () {
+        const index = $(this).data('index');
+        const defect = currentDefects[index];
+
+        if (!defect) return;
+
+        // Toggle Logic: If already selected, deselect
+        const currentSelected = $('#unified-feedback-form').data('bboxIndex');
+        if (currentSelected === index) {
+          // Deselect logic
+
+          // Revert Reference Confidence
+          $('#main-confidence-val').text((currentLogConfidence * 100).toFixed(1) + '%');
+          if (currentLogConfidence < 0.6) {
+            $('#main-confidence-val').css({ 'color': 'red', 'font-weight': 'bold' });
+          } else {
+            $('#main-confidence-val').css({ 'color': '', 'font-weight': '' });
+          }
+
+          resetUnifiedForm();
+
+          updateBBox(currentDefects); // Redraw
+          return;
+        }
+
+        // --- Select New Box ---
+
+        // Update Main Confidence Display
+        const boxConf = currentDefects[index].confidence || 0;
+        $('#main-confidence-val').text((boxConf * 100).toFixed(1) + '%');
+        if (boxConf < 0.6) {
+          $('#main-confidence-val').css({ 'color': 'red', 'font-weight': 'bold' });
+        } else {
+          $('#main-confidence-val').css({ 'color': '', 'font-weight': '' });
+        }
+
+        // Activate Unified Form for this Box
+        activateUnifiedForm(index, defect);
+
+        // Update BBox Visuals
+        updateBBox(currentDefects); // Redraw entire canvas
+        // Highlight logic handled in updateBBox via selected-box-active check? 
+        // No, updateBBox destroys and recreates. We need to set active class AFTER redraw?
+        // Or better: updateBBox should check 'unified-feedback-form' data.
+        // Actually, let's just use the class approach again.
+        // Wait, updateBBox() clears '#bbox-container'. So $(this) reference is lost if we call updateBBox().
+        // Correct approach: updateBBox should read the active index from state.
+        // For now, let's just find the new div and highlight it.
+        $(`.bbox-div[data-index="${index}"]`).addClass('selected-box-active');
+      });
+
+
+      // --- Unified Form & Queue Logic ---
+
+      function resetUnifiedForm() {
+        $('#unified-feedback-form')[0].reset();
+        $('#target-box-id').text('-');
+        $('#form-context-info').hide();
+        $('#cancel-selection-btn').hide();
+        $('#unified-feedback-form').removeData('bboxIndex');
+
+        // Set Default State (FN Mode)
+        $('#fb-fn').prop('checked', true).prop('disabled', false);
+        $('#fb-fp').prop('disabled', true);
+        $('#fb-wrong').prop('disabled', true);
+        $('#unified-correct-class-group').hide();
+        $('#unified-comment').attr('placeholder', 'Enter details for missing defect...');
+        $('#feedback-form-title').text('Feedback');
+      }
+
+      function activateUnifiedForm(index, defect) {
+        resetUnifiedForm(); // Start clean
+
+        $('#unified-feedback-form').data('bboxIndex', index);
+        $('#target-box-id').text(index); // Or use defect type info?
+        $('#form-context-info').show();
+        $('#cancel-selection-btn').show();
+
+        // Set Box Mode
+        $('#fb-fn').prop('disabled', true); // Cannot be FN if box is selected
+        $('#fb-fp').prop('disabled', false).prop('checked', true); // Default to FP?
+        $('#fb-wrong').prop('disabled', false);
+
+        $('#unified-comment').attr('placeholder', `Feedback for ${defect.type}...`);
+        $('#feedback-form-title').text('Box Feedback');
+      }
+
+      // Handle Feedback Type Change (Unified)
+      $('input[name="feedbackTypeUnified"]').on('change', function () {
+        if ($(this).val() === 'tp_wrong_class') {
+          $('#unified-correct-class-group').show();
+        } else {
+          $('#unified-correct-class-group').hide();
+        }
+      });
+
+      // Add to Queue Button
+      $('#add-to-queue-btn').on('click', function () {
+        const bboxIndex = $('#unified-feedback-form').data('bboxIndex');
+        const type = $('input[name="feedbackTypeUnified"]:checked').val();
+        const comment = $('#unified-comment').val();
+        const correctLabel = $('#unified-correct-class-select').val();
+        const reviewer = $('#created-by-input').val();
+
+        if (!type) { alert('Please select a feedback type.'); return; }
+
+        const item = {
+          id: Date.now(),
+          type: type,
+          comment: comment,
+          reviewer: reviewer,
+          bboxIndex: bboxIndex // undefined if global
+        };
+
+        if (type === 'tp_wrong_class') {
+          item.correctLabel = correctLabel;
+        }
+
+        // Store target_bbox immediately to ensure validity against current defects
+        if (bboxIndex !== undefined && currentDefects && currentDefects[bboxIndex]) {
+          const defect = currentDefects[bboxIndex];
+          if (defect && defect.bbox) {
+            const [x, y, w, h] = defect.bbox;
+            item.target_bbox = [x, y, x + w, y + h]; // Store [x1, y1, x2, y2]
+          }
+        }
+
+        feedbackQueue.push(item);
+        renderQueue();
+
+        // Reset after adding
+        $('.bbox-div').removeClass('selected-box-active');
+        $('#main-confidence-val').css({ 'color': '', 'font-weight': '' });
+        // Revert Main Confidence Display to Log Average ?
+        $('#main-confidence-val').text((currentLogConfidence * 100).toFixed(1) + '%');
+        if (currentLogConfidence < 0.6) {
+          $('#main-confidence-val').css({ 'color': 'red', 'font-weight': 'bold' });
+        }
+
+        resetUnifiedForm();
+      });
+
+      // Cancel Selection Button
+      $('#cancel-selection-btn').on('click', function () {
+        $('.bbox-div').removeClass('selected-box-active');
+
+        // Revert Confidence
+        $('#main-confidence-val').text((currentLogConfidence * 100).toFixed(1) + '%');
+        if (currentLogConfidence < 0.6) {
+          $('#main-confidence-val').css({ 'color': 'red', 'font-weight': 'bold' });
+        }
+
+        resetUnifiedForm();
+      });
+
+      // Render Queue
+      function renderQueue() {
+        const list = $('#feedback-queue-list');
+        list.empty();
+        $('#queue-count').text(feedbackQueue.length);
+        // REMOVED: $('#submit-queue-btn').prop('disabled', feedbackQueue.length === 0);
+
+        if (feedbackQueue.length === 0) {
+          list.append('<li class="list-group-item text-muted text-center" style="font-size: 15px;">No items pending</li>');
+          return;
+        }
+
+        feedbackQueue.forEach((item, idx) => {
+          let label = '';
+          let badgeClass = 'badge-secondary';
+          let typeText = item.type;
+
+          if (item.type === 'false_negative') {
+            label = 'Global (FN)';
+            badgeClass = 'badge-warning';
+            typeText = 'False Negative';
+          } else if (item.type === 'false_positive') {
+            label = `Box #${item.bboxIndex}`;
+            badgeClass = 'badge-danger';
+            typeText = 'False Positive';
+          } else if (item.type === 'tp_wrong_class') {
+            label = `Box #${item.bboxIndex}`;
+            badgeClass = 'badge-info';
+            typeText = `Wrong -> ${item.correctLabel}`;
+          }
+
+          const li = `
+                  <li class="list-group-item p-2" style="font-size: 15px;">
+                      <div class="d-flex justify-content-between align-items-center mb-1">
+                          <span class="badge ${badgeClass}">${typeText}</span>
+                          <button class="btn btn-sm btn-outline-danger py-0 px-1 delete-queue-item" data-id="${item.id}">&times;</button>
+                      </div>
+                      <div class="text-muted small"><strong>Target:</strong> ${label}</div>
+                      ${item.comment ? `<div class="text-dark small border-left pl-2 mt-1" style="border-width:2px !important;">${item.comment}</div>` : ''}
+                  </li>
+              `;
+          list.append(li);
+        });
+      }
+
+      // Delete Queue Item
+      $(document).on('click', '.delete-queue-item', function () {
+        const id = $(this).data('id');
+        feedbackQueue = feedbackQueue.filter(i => i.id !== id);
+        renderQueue();
+      });
+
+
+      // Submit Queue
+      $('#submit-queue-btn').on('click', function () {
+        console.log("Submit button clicked");
+
+        if (!selectedLog) {
+          alert("Error: No defect log selected. Please select a row from the table below.");
+          return;
+        }
+
+        if (feedbackQueue.length === 0) {
+          alert("Queue is empty. Please add feedback items to the queue before submitting.");
+          return;
+        }
+
+        const globalReviewer = $('#created-by-input').val();
+        const img = document.getElementById('main-image');
+
+        // Validation: Ensure image is loaded for dimensions
+        if (!img || !img.naturalWidth) {
+          alert("Error: Image not fully loaded. Please wait or re-select the log.");
+          return;
+        }
+
+        const payload = {
+          log_id: Number(selectedLog.id), // Ensure Interger
+          image_width: img.naturalWidth,  // Required by backend
+          image_height: img.naturalHeight,// Required by backend
+          created_by: globalReviewer || 'Anonymous',
+          feedbacks: []
+        };
+
+        feedbackQueue.forEach(item => {
+          let finalLabel = null;
+          if (item.correctLabel) {
+            finalLabel = item.correctLabel.toLowerCase().trim().replace(/\s+/g, '_');
+          }
+
+          const fb = {
+            feedback_type: item.type,
+            comment: item.comment,
+            correct_label: finalLabel,
+            target_bbox: (Array.isArray(item.target_bbox) && item.target_bbox.length === 4)
+              ? item.target_bbox
+              : null
+          };
+
+          payload.feedbacks.push(fb);
+        });
+        console.log("Submitting:", payload);
+
+        // 1. Loading State
+        const $btn = $('#submit-queue-btn');
+        const originalText = $btn.text();
+        $btn.text('Submitting...').prop('disabled', true);
+
+        $.ajax({
+          url: `${API_BASE_URL}/feedback/bulk`,
+          method: 'POST',
+          contentType: 'application/json',
+          dataType: 'json',
+          data: JSON.stringify(payload),
+          success: function (resp) {
+            // 2. Success Feedback
+            alert("Feedback Submitted Successfully!\nID: " + resp.log_id);
+
+            // Reset UI
+            feedbackQueue = [];
+            renderQueue();
+
+            // Clear inputs
+            $('#unified-comment').val('');
+            // $('#created-by-input').val(''); 
+
+            // Reset Button
+            $btn.text(originalText).prop('disabled', false);
+
+            $('#feedback-queue-list').html('<li class="list-group-item text-success text-center"><strong>Submitted!</strong></li>');
+            setTimeout(renderQueue, 2000);
+          },
+          error: function (err) {
+            console.error("Submission Error:", err);
+
+            // --- ENHANCED LOGGING (Force Display) ---
+            let errorDetails = "Unknown Error";
+
+            try {
+              if (err.responseJSON) {
+                errorDetails = JSON.stringify(err.responseJSON, null, 2);
+              } else if (err.responseText) {
+                errorDetails = err.responseText.substring(0, 800); // Show more
+              } else {
+                errorDetails = err.statusText + " (" + err.status + ")";
+              }
+            } catch (e) {
+              errorDetails = "Error parsing response: " + e.message;
+            }
+
+            alert("Submission Failed!\n\n=== SERVER LOG ===\n" + errorDetails);
+
+            // Reset Button on error
+            $btn.text(originalText).prop('disabled', false);
+          }
+        });
+
+      });
+      // Toggle Event
+      $('#bboxToggle').change(function () {
+        const activeRow = $('.table-active');
+        if (activeRow.length > 0) {
+          const uid = activeRow.data('id');
+          const selectedLog = defectLogs.find(log => log.uid == uid);
+          if (selectedLog) updateBBox(selectedLog.defects);
+        }
+      });
+
+      // Select first item by default
+      $('.defect-row').first().click();
+
+
+
+    });
+  </script>
+</body>
+
+</html>

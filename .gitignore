@@ -45,7 +45,24 @@ training/PCB_DATASET/
 training/runs/
 *.pt
 
-# RTSP 관련 
+# Tracking
+mlruns/
+wandb/
+.python-version
+mlflow.db
+
+# Node.js (Frontend)
+node_modules/
+dashboard/dist/
+
+# RTSP 관련
 serving/rtsp/mediamtx
 serving/rtsp/*.mp4
 serving/rtsp/images/
+
+# Claude Code
+CLAUDE.md
+.claude/
+
+# Edge 디버그
+serving/edge/debug_crops/
