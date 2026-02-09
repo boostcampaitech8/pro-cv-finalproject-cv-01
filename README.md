@@ -38,11 +38,11 @@
 [![데모 영상](https://img.youtube.com/vi/7DkqRYQfxBg/0.jpg)](https://youtu.be/7DkqRYQfxBg?si=3mS4f99RSzwpcFdx)
 
 
-**라이브 데모**: http://3.35.182.98/ 
+### **라이브 데모**: http://3.35.182.98/ 
 
 > ⚠️ 서버는 2026년 3월 말까지 운영 예정입니다.
 
-Dashboard Screenshot
+### Dashboard Screenshot
 ![대시보드](docs/images/dashboard.png)
 
 
