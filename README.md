@@ -47,11 +47,11 @@ Dashboard Screenshot
 
 
 ## 시스템 아키텍처
-System Overview
+### System Overview
 ![오버뷰](docs/images/overview.png)
 
 
-System Architecture
+### System Architecture
 ![아키텍처](docs/images/architecture.png)
 
 
