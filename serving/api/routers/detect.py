@@ -14,8 +14,8 @@ import logging
 # 로거 설정
 logger = logging.getLogger("uvicorn")
 
-# 세션별 마지막 상태 추적 (상태 변화 감지용)
-last_status_per_session: dict[int, str] = {}
+# 세션별 마지막 상태 추적 (상태 변화 감지용, session_id=None은 전체 데이터 기준)
+last_status_per_session: dict = {}
 
 router = APIRouter(
     prefix="/detect",
@@ -85,17 +85,16 @@ async def check_and_send_slack_alert(session_id: Optional[int]):
     상태 변화 감지: healthy ↔ warning ↔ critical
     """
     try:
-        # 세션 ID가 없으면 종료 (상태 추적 불가)
-        if not session_id:
-            logger.debug("[Slack] session_id 없음 - 상태 변화 감지 불가")
-            return
-
-        # health 데이터 조회
-        health_data = await db.get_health(str(session_id))
+        # health 데이터 조회 (session_id 없으면 전체 데이터 기준)
+        session_filter = str(session_id) if session_id is not None else None
+        health_data = await db.get_health(session_filter)
         current_status = health_data.status
 
+        # 상태 추적 키 (session_id 없으면 전체 데이터 기준)
+        tracking_key = session_id if session_id is not None else "__global__"
+
         # 이전 상태 조회
-        previous_status = last_status_per_session.get(session_id)
+        previous_status = last_status_per_session.get(tracking_key)
 
         # 상태 변화 체크
         if previous_status == current_status:
@@ -121,7 +120,7 @@ async def check_and_send_slack_alert(session_id: Optional[int]):
         )
 
         # 현재 상태 저장
-        last_status_per_session[session_id] = current_status
+        last_status_per_session[tracking_key] = current_status
 
     except Exception as e:
         logger.error(f"[Slack] 알림 전송 실패: {e}")
