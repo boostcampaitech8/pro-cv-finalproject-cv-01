@@ -165,7 +165,7 @@ sudo systemctl start nginx
 │   │   └── upload_worker.py    #   결과 업로드 워커
 │   └── rtsp/                   # RTSP 스트림 서버
 ├── dashboard/                  # 프론트엔드 (HTML/JS)
-├── training/                   # 모델 학습 (YOLOv8 + QAT)
+├── training/                   # 모델 학습 (YOLOv11 + QAT)
 ├── docs/                       # 문서
 └── .github/workflows/          # CI/CD (GitHub Actions)
 ```
