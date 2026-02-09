@@ -33,9 +33,10 @@
 
 
 ## 데모 영상
+> ⚠️ 영상을 누르면 재생 됩니다.
 
 [![데모 영상](https://img.youtube.com/vi/7DkqRYQfxBg/0.jpg)](https://youtu.be/7DkqRYQfxBg?si=3mS4f99RSzwpcFdx)
-> ⚠️ 영상을 누르면 재생 됩니다.
+
 
 **라이브 데모**: http://3.35.182.98/ 
 
@@ -169,6 +170,20 @@ sudo systemctl start nginx
 └── .github/workflows/          # CI/CD (GitHub Actions)
 ```
 
+## 📚 상세 문서
+
+각 모듈의 상세 구현 문서는 `docs/` 폴더에 있습니다.
+
+| 모듈 | 문서 |
+|------|------|
+| 🎨 프론트엔드 | [docs/frontend.md](docs/frontend.md) |
+| ⚙️ 백엔드 | [docs/backend/](docs/backend/) |
+| 🔧 엣지 | [docs/edge.md](docs/edge.md) |
+| 🧠 학습 | [docs/training.md](docs/training.md) |
+| 📡 RTSP | [docs/rtsp.md](docs/rtsp.md) |
+
+---
+
 ## API 명세
 
 | Method | Endpoint | 설명 |
@@ -198,15 +213,57 @@ sudo systemctl start nginx
 }
 ```
 
-## 팀 소개
+## 👥 팀 소개
 
-| 이름 | 역할 | GitHub |
-|------|------|--------|
-| 김경모| 프론트엔드 | |
-| 김지은| 백엔드 | |
-| 위정호| 모델 학습 | |
-| 이봉학| 엣지 디바이스| |
-| 조수빈| RTSP / 인프라 | |
+<table>
+<tr>
+<td align="center" width="20%" style="border: 2px solid #e0e0e0; border-radius: 10px; padding: 20px;">
+<img src="docs/images/team/kyungmo.png" width="300px" alt="김경모"/>
+<br />
+<b>김경모</b>
+<br />
+<code>Frontend</code> <code>Modeling</code>
+<br />
+<sub>JavaScript 기반 대시보드 구축, MLOps 개발, 모델 경량화</sub>
+</td>
+<td align="center" width="20%" style="border: 2px solid #e0e0e0; border-radius: 10px; padding: 20px;">
+<img src="docs/images/team/jieun.png" width="300px" alt="김지은"/>
+<br />
+<b>김지은</b>
+<br />
+<code>Backend</code> <code>MLOps</code> <code>CI/CD</code> <code>AWS</code>
+<br />
+<sub>FastAPI로 실시간 API 설계 및 구축, MLOps 기능 설계 및 구현, GitHub Actions CI/CD</sub>
+</td>
+<td align="center" width="20%" style="border: 2px solid #e0e0e0; border-radius: 10px; padding: 20px;">
+<img src="docs/images/team/jungho.png" width="300px" alt="위정호"/>
+<br />
+<b>위정호</b>
+<br />
+<code>Modeling</code> <code>AWS</code>
+<br />
+<sub>YOLO 기반 모델링 및 경량화, AWS S3 관리</sub>
+</td>
+<td align="center" width="20%" style="border: 2px solid #e0e0e0; border-radius: 10px; padding: 20px;">
+<img src="docs/images/team/bonghak.png" width="300px" alt="이봉학"/>
+<br />
+<b>이봉학</b>
+<br />
+<code>Edge Device</code>
+<br />
+<sub>Jetson Orin Nano 기반 실시간 전처리 및 추론 시스템 구축</sub>
+</td>
+<td align="center" width="20%" style="border: 2px solid #e0e0e0; border-radius: 10px; padding: 20px;">
+<img src="docs/images/team/subin.png" width="300px" alt="조수빈"/>
+<br />
+<b>조수빈</b>
+<br />
+<code>PM</code> <code>AWS</code> <code>RTSP</code>
+<br />
+<sub>프로젝트 관리, 네트워크 설계, RTSP 영상 분석, AWS 인프라</sub>
+</td>
+</tr>
+</table>
 
 ## 라이선스
 
