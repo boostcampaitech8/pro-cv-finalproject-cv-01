@@ -190,7 +190,7 @@ sudo systemctl start nginx
 |--------|----------|------|
 | POST | `/detect` | 엣지 추론 결과 수신 (다중 결함 지원) |
 | GET | `/stats` | 검사 통계 (불량률, 신뢰도, FPS 등) |
-| GET | `/latest` | 최근 검사 이력 10건 |
+| GET | `/latest` | 최근 검사 이력 n건 |
 | GET | `/defects` | 결함 타입별 집계 |
 | GET | `/monitoring/health` | 시스템 건강 상태 (세션별 필터링) |
 | GET | `/monitoring/alerts` | 알림 조회 (프론트엔드 폴링용) |
