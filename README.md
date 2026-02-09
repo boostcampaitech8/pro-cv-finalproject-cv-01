@@ -1,110 +1,157 @@
-# 🍇 PODO - PCB Only Detected Once
+<div align="right">
 
-> PCB 기판의 결함을 실시간으로 탐지하는 Edge AI 시스템
+[![한국어](https://img.shields.io/badge/lang-한국어-red.svg)](README.md)
+[![English](https://img.shields.io/badge/lang-English-blue.svg)](README_EN.md)
 
-![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
-![YOLOv8](https://img.shields.io/badge/YOLOv8-00FFFF?logo=yolo&logoColor=black)
-![OpenCV](https://img.shields.io/badge/OpenCV-5C3EE8?logo=opencv&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white)
-![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?logo=githubactions&logoColor=white)
+</div>
 
-## 프로젝트 소개
+<div align="center">
+
+# 🍇 PODO
+
+### **P**CB **O**nly **D**etected **O**nce
+
+*컨베이어 벨트 위 PCB 결함을 실시간으로 탐지하는 Edge AI 시스템*
+
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![YOLOv11](https://img.shields.io/badge/YOLOv11-00FFFF?style=for-the-badge&logo=yolo&logoColor=black)](https://docs.ultralytics.com)
+[![OpenCV](https://img.shields.io/badge/OpenCV-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white)](https://opencv.org)
+[![AWS](https://img.shields.io/badge/AWS-232F3E?style=for-the-badge&logo=amazonaws&logoColor=white)](https://aws.amazon.com)
+
+<br />
+
+[**라이브 데모**](http://3.35.182.98/) · [**API 문서**](http://3.35.182.98:8080/docs) · [**데모 영상**](https://youtu.be/7DkqRYQfxBg?si=3mS4f99RSzwpcFdx)
+
+</div>
+
+<br />
+
+<div align="center">
+
+|  mAP@50 | Recall | 추론 속도 | 경량화 가속 |
+|:---:|:---:|:---:|:---:|
+| **96.0%** | **100%** | **33.8 FPS** | **2.4x** |
+| 거의 모든 결함을 정확히 탐지 | 불량을 단 하나도 놓치지 않음 | 30fps 영상 실시간 처리 | TensorRT QAT INT8 |
+
+</div>
+
+<br />
+
+---
+
+## 📋 목차
+
+- [프로젝트 소개](#-프로젝트-소개)
+- [데모](#-데모)
+- [시스템 아키텍처](#-시스템-아키텍처)
+- [기술 스택](#-기술-스택)
+- [모델](#-모델-학습--최적화)
+- [시작하기](#-시작하기)
+- [프로젝트 구조](#-프로젝트-구조)
+- [API 명세](#-api-명세)
+- [팀 소개](#-팀-소개)
+
+---
+
+## 🔍 프로젝트 소개
 
 제조 현장에서 PCB 기판의 결함(scratch, hole 등)을 사람이 육안으로 검수하는 것은 느리고 일관성이 떨어집니다.
 **PODO**는 컨베이어 벨트 위를 지나는 PCB를 실시간으로 촬영하고, Edge AI(Jetson Orin Nano)에서 YOLOv11 모델로 즉시 추론하여 결함을 자동 탐지합니다.
 탐지 결과는 백엔드 서버와 AWS Storage에 저장되고, 대시보드를 통해 실시간 모니터링할 수 있습니다.
 
-**핵심 기능**
-- RTSP 영상 스트림에서 PCB를 자동 감지하고 크롭하여 추론
-- YOLOv11 + QAT 경량화 모델로 Edge 디바이스에서 실시간 결함 탐지
-- 불량률, 신뢰도 분포, 결함 유형별 통계를 제공하는 실시간 대시보드
-- 임계값 기반 알림 시스템 (Slack 연동)
-- 품질 관리자 피드백 → 자동 재라벨링 → S3 저장으로 이어지는 MLOps 파이프라인
+### 핵심 기능
 
-**핵심 성과**
+> - 🎥 RTSP 영상 스트림에서 PCB를 자동 감지하고 크롭하여 추론
+> - ⚡ YOLOv11 + QAT 경량화 모델로 Edge 디바이스에서 실시간 결함 탐지
+> - 📊 불량률, 신뢰도 분포, 결함 유형별 통계를 제공하는 실시간 대시보드
+> - 🔔 임계값 기반 알림 시스템 (Slack 연동)
+> - 🔄 품질 관리자 피드백 → 자동 재라벨링 → S3 저장으로 이어지는 MLOps 파이프라인
 
-| 지표 | 수치 | 설명 |
-|------|------|------|
-| mAP@50 | **96.0%** | 거의 모든 결함을 정확히 탐지 |
-| Recall | **100%** | 불량을 단 하나도 놓치지 않음 |
-| 추론 속도 | **33.8 FPS** | 30fps 영상의 모든 프레임을 실시간 처리 |
-| 경량화 가속 | **2.4x** | PyTorch Native 대비 TensorRT QAT INT8 |
+---
 
+## 🎬 데모
 
-## 데모 영상
-> ⚠️ 영상을 누르면 재생 됩니다.
+> ⚠️ 이미지를 클릭하면 YouTube에서 재생됩니다.
+
+<div align="center">
 
 [![데모 영상](https://img.youtube.com/vi/7DkqRYQfxBg/0.jpg)](https://youtu.be/7DkqRYQfxBg?si=3mS4f99RSzwpcFdx)
 
+**🌐 라이브 데모**: http://3.35.182.98/
 
-### **라이브 데모**: http://3.35.182.98/ 
+<sub>⚠️ 서버는 2026년 3월 말까지 운영 예정입니다.</sub>
 
-> ⚠️ 서버는 2026년 3월 말까지 운영 예정입니다.
+</div>
 
-### Dashboard Screenshot
+### Dashboard
+
 ![대시보드](docs/images/dashboard.png)
 
+---
 
-## 시스템 아키텍처
+## 🏗 시스템 아키텍처
+
 ### System Overview
 ![오버뷰](docs/images/overview.png)
-
 
 ### System Architecture
 ![아키텍처](docs/images/architecture.png)
 
-
-
-
-**데이터 흐름:**
+### 데이터 흐름
 1. **RTSP 서버** (Lightsail) — PCB 영상을 RTSP 프로토콜로 스트리밍
 2. **엣지** (Jetson Orin) — RTSP 수신 → 배경 차분으로 PCB 크롭 → YOLO 추론 → 결과 전송
 3. **백엔드** (EC2 / FastAPI) — 추론 결과 및 이미지를 DB·S3에 저장, 통계 API 제공, Slack 알림
 4. **프론트엔드** (EC2 / nginx) — 실시간 대시보드로 검사 현황 시각화 + 피드백 제출
 5. **피드백 → 재라벨링** — 품질 관리자가 bbox별 피드백(오탐/미탐/클래스 수정)을 제출하면 수정된 YOLO 라벨이 S3 `refined/`에 자동 저장되어 모델 재학습에 활용
 
-## 기술 스택
+---
+
+## 🛠 기술 스택
 
 | 모듈 | 기술 |
-|------|------|
-| 백엔드 | FastAPI, SQLite (aiosqlite), Pydantic |
-| 엣지 | Python, OpenCV, NumPy, Threading/Queue |
-| 프론트엔드 | HTML/CSS/JS, Bootstrap (Paper Dashboard) |
-| 학습 | YOLOv11, QAT (Quantization-Aware Training) |
-| RTSP | MediaMTX, H.264 |
-| MLOps | S3 (재라벨링 데이터셋), Slack Webhook (알림) |
-| 인프라/CI | GitHub Actions, AWS (EC2, S3, Lightsail), systemd, nginx |
+|:-----|:-----|
+| **백엔드** | `FastAPI` `SQLite (aiosqlite)` `Pydantic` |
+| **엣지** | `Python` `OpenCV` `NumPy` `Threading/Queue` |
+| **프론트엔드** | `HTML/CSS/JS` `Bootstrap (Paper Dashboard)` |
+| **학습** | `YOLOv11` `QAT (Quantization-Aware Training)` |
+| **RTSP** | `MediaMTX` `H.264` |
+| **MLOps** | `S3 (재라벨링 데이터셋)` `Slack Webhook (알림)` |
+| **인프라/CI** | `GitHub Actions` `AWS (EC2, S3, Lightsail)` `systemd` `nginx` |
 
-## 모델
+---
+
+## 🧠 모델 학습 & 최적화
 
 모델 크기 3종(Nano/Small/Medium) x 해상도 4종(640~1600px) x 버전 2종(v8/v11), 총 **24가지 조합**을 실험하여 최적 모델을 선택했습니다.
 
-**주요 실험 결과 (V100 기준):**
+### 주요 실험 결과 (V100 기준)
 
 | 모델 | 해상도 | mAP50 | Recall | FPS | 비고 |
-|------|--------|-------|--------|-----|------|
+|:-----|:------:|:-----:|:------:|:---:|:-----|
 | YOLOv11n | 960px | 0.9662 | 1.0 | 44.79 | 가성비 우수 |
-| **YOLOv11m** | **640px** | **0.9620** | **1.0** | **46.23** | **배포 표준** |
+| **YOLOv11m** | **640px** | **0.9620** | **1.0** | **46.23** | **✅ 배포 표준** |
 | YOLOv8s | 1280px | 0.9776 | 1.0 | 40.03 | 고성능 대안 |
 | YOLOv11m | 960px | 0.9742 | 1.0 | 37.66 | 고성능 대안 |
 
-**경량화 (Jetson Orin Nano 배포):**
+### 경량화 (Jetson Orin Nano 배포)
 
 | 단계 | 방식 | FPS | 지연 시간 | mAP50 | Recall |
-|------|------|-----|----------|-------|--------|
+|:-----|:-----|:---:|:--------:|:-----:|:------:|
 | Step 1 | TensorRT FP16 | 30.7 | 32.6ms | 0.9586 | 1.0 |
 | Step 2 | PTQ (INT8) | 36.8 | 27.2ms | 0.9487 | 1.0 |
 | **Step 3** | **QAT (INT8)** | **33.8** | **29.6ms** | **0.9602** | **1.0** |
 
-> QAT 자체 파이프라인 구축: Ultralytics 기본 export 불가 → Deep Recursive Injection + EMA Trainer + Re-calibration 직접 구현
+> 💡 **QAT 자체 파이프라인 구축**: Ultralytics 기본 export 불가 → Deep Recursive Injection + EMA Trainer + Re-calibration 직접 구현
 
-**최종 선택: YOLOv11m + TensorRT QAT INT8**
-- FP32 수준의 정밀도를 유지하며 추론 속도 극대화 (PyTorch 대비 약 2.4배)
-- 33.8 FPS로 30fps 영상 소스의 모든 프레임 실시간 처리 가능
+### 최종 선택: `YOLOv11m + TensorRT QAT INT8`
 
+- FP32 수준의 정밀도를 유지하며 추론 속도 극대화 (PyTorch 대비 약 **2.4배**)
+- **33.8 FPS**로 30fps 영상 소스의 모든 프레임 실시간 처리 가능
 
-## 시작하기
+---
+
+## 🚀 시작하기
 
 ### 사전 요구사항
 
@@ -120,7 +167,7 @@ uv sync --active
 uv run uvicorn main:app --reload --port 8000
 ```
 
-API 문서: http://localhost:8000/docs
+> 📖 API 문서: http://localhost:8000/docs
 
 ### 엣지
 
@@ -131,7 +178,7 @@ uv run python main.py --input rtsp://YOUR_RTSP_URL
 ```
 
 | 옵션 | 설명 | 기본값 |
-|------|------|--------|
+|:-----|:-----|:------:|
 | `--input`, `-i` | RTSP URL 또는 비디오 파일 | RTSP 서버 주소 |
 | `--loop`, `-l` | 비디오 파일 반복 재생 | False |
 | `--debug`, `-d` | 디버그 모드 (크롭 저장) | False |
@@ -145,7 +192,9 @@ uv run python main.py --input rtsp://YOUR_RTSP_URL
 sudo systemctl start nginx
 ```
 
-## 프로젝트 구조
+---
+
+## 📁 프로젝트 구조
 
 ```
 .
@@ -170,12 +219,10 @@ sudo systemctl start nginx
 └── .github/workflows/          # CI/CD (GitHub Actions)
 ```
 
-## 📚 상세 문서
-
-각 모듈의 상세 구현 문서는 `docs/` 폴더에 있습니다.
+### 📚 상세 문서
 
 | 모듈 | 문서 |
-|------|------|
+|:-----|:-----|
 | 🎨 프론트엔드 | [docs/frontend.md](docs/frontend.md) |
 | ⚙️ 백엔드 | [docs/backend/](docs/backend/) |
 | 🔧 엣지 | [docs/edge.md](docs/edge.md) |
@@ -184,22 +231,23 @@ sudo systemctl start nginx
 
 ---
 
-## API 명세
+## 📡 API 명세
 
 | Method | Endpoint | 설명 |
-|--------|----------|------|
-| POST | `/detect` | 엣지 추론 결과 수신 (다중 결함 지원) |
-| GET | `/stats` | 검사 통계 (불량률, 신뢰도, FPS 등) |
-| GET | `/latest` | 최근 검사 이력 n건 |
-| GET | `/defects` | 결함 타입별 집계 |
-| GET | `/monitoring/health` | 시스템 건강 상태 (세션별 필터링) |
-| GET | `/monitoring/alerts` | 알림 조회 (프론트엔드 폴링용) |
-| POST | `/feedback/bulk` | 다중 bbox 피드백 + 자동 재라벨링 |
-| GET | `/feedback/stats` | 피드백 통계 (MLOps) |
-| GET | `/feedback/queue` | 라벨링 대기열 조회 |
-| GET | `/feedback/export` | 재학습용 데이터셋 정보 (S3 경로) |
+|:------:|:---------|:-----|
+| `POST` | `/detect` | 엣지 추론 결과 수신 (다중 결함 지원) |
+| `GET` | `/stats` | 검사 통계 (불량률, 신뢰도, FPS 등) |
+| `GET` | `/latest` | 최근 검사 이력 n건 |
+| `GET` | `/defects` | 결함 타입별 집계 |
+| `GET` | `/monitoring/health` | 시스템 건강 상태 (세션별 필터링) |
+| `GET` | `/monitoring/alerts` | 알림 조회 (프론트엔드 폴링용) |
+| `POST` | `/feedback/bulk` | 다중 bbox 피드백 + 자동 재라벨링 |
+| `GET` | `/feedback/stats` | 피드백 통계 (MLOps) |
+| `GET` | `/feedback/queue` | 라벨링 대기열 조회 |
+| `GET` | `/feedback/export` | 재학습용 데이터셋 정보 (S3 경로) |
 
-**POST /detect 요청 예시:**
+<details>
+<summary><b>POST /detect 요청 예시</b></summary>
 
 ```json
 {
@@ -212,6 +260,10 @@ sudo systemctl start nginx
   ]
 }
 ```
+
+</details>
+
+---
 
 ## 👥 팀 소개
 
@@ -265,6 +317,8 @@ sudo systemctl start nginx
 </tr>
 </table>
 
-## 라이선스
+---
+
+## 📄 라이선스
 
 이 프로젝트는 부스트캠프 AI Tech 과정에서 제작되었습니다.
