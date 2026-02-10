@@ -58,6 +58,7 @@
 
 Manual visual inspection of PCB defects (scratches, holes, etc.) in manufacturing is slow and inconsistent.
 **PODO** captures PCBs moving on a conveyor belt in real-time and runs inference instantly on an Edge AI device (Jetson Orin Nano) using a YOLOv11 model to automatically detect defects.
+The model is trained on the **PKU-Market-PCB** dataset, ensuring high detection performance optimized for practical environments.
 Inference results are stored in a backend server and AWS Storage, enabling real-time monitoring through a dashboard.
 
 ### Key Features
@@ -306,9 +307,9 @@ sudo systemctl start nginx
 <sub>Jetson Orin Nano setup and inference system implementation</sub>
 </td>
 <td align="center" width="20%" style="border: 2px solid #e0e0e0; border-radius: 10px; padding: 20px;">
-<img src="docs/images/team/subin.png" width="300px" alt="Subin Jo"/>
+<img src="docs/images/team/subin.png" width="300px" alt="Subin Cho"/>
 <br />
-<b>Subin Jo</b>
+<b>Subin Cho</b>
 <br />
 <code>PM</code> <code>AWS</code> <code>RTSP</code>
 <br />
