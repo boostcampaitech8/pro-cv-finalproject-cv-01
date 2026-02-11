@@ -23,6 +23,8 @@
 
 [**라이브 데모**](http://3.35.182.98/) · [**API 문서**](http://3.35.182.98:8080/docs) · [**데모 영상**](https://youtu.be/7DkqRYQfxBg?si=3mS4f99RSzwpcFdx)
 
+[**📄 Wrap-up 리포트**](https://www.notion.so/Wrap-up-REPORT-3043e9d89def8047952bf4abe70fbeee) · [**📊 발표 자료**](docs/pdf/presentation.pdf)
+
 </div>
 
 <br />
@@ -44,6 +46,7 @@
 
 - [프로젝트 소개](#-프로젝트-소개)
 - [데모](#-데모)
+- [프로젝트 문서](#-프로젝트-문서)
 - [시스템 아키텍처](#-시스템-아키텍처)
 - [기술 스택](#-기술-스택)
 - [모델](#-모델-학습--최적화)
@@ -88,6 +91,15 @@
 ### Dashboard
 
 ![대시보드](docs/images/dashboard.png)
+
+---
+
+## 📚 프로젝트 문서
+
+| 문서 | 설명 |
+|:-----|:-----|
+| 📄 [**Wrap-up 리포트**](https://www.notion.so/Wrap-up-REPORT-3043e9d89def8047952bf4abe70fbeee) | 프로젝트 전체 과정 및 결과 정리 (Notion) |
+| 📊 [**발표 자료**](docs/pdf/presentation.pdf) | 최종 프레젠테이션 슬라이드 (PDF) |
 
 ---
 

@@ -23,6 +23,8 @@
 
 [**Live Demo**](http://3.35.182.98/) · [**API Docs**](http://3.35.182.98:8080/docs) · [**Demo Video**](https://youtu.be/7DkqRYQfxBg?si=3mS4f99RSzwpcFdx)
 
+[**📄 Wrap-up Report**](https://www.notion.so/Wrap-up-REPORT-3043e9d89def8047952bf4abe70fbeee) · [**📊 Presentation**](docs/pdf/presentation.pdf)
+
 </div>
 
 <br />
@@ -44,6 +46,7 @@
 
 - [Project Overview](#-project-overview)
 - [Demo](#-demo)
+- [Project Documentation](#-project-documentation)
 - [System Architecture](#-system-architecture)
 - [Tech Stack](#-tech-stack)
 - [Model Training & Optimization](#-model-training--optimization)
@@ -88,6 +91,15 @@ Inference results are stored in a backend server and AWS Storage, enabling real-
 ### Dashboard
 
 ![Dashboard](docs/images/dashboard.png)
+
+---
+
+## 📚 Project Documentation
+
+| Document | Description |
+|:---------|:------------|
+| 📄 [**Wrap-up Report**](https://www.notion.so/Wrap-up-REPORT-3043e9d89def8047952bf4abe70fbeee) | Complete project process and results (Notion) |
+| 📊 [**Presentation**](docs/pdf/presentation.pdf) | Final presentation slides (PDF) |
 
 ---
 
