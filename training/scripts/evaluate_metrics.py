@@ -13,6 +13,29 @@ from collections import defaultdict
 # 한글 출력을 위한 유니코드 처리 (필요시)
 import sys
 
+# ==============================================================================
+# Helper Classes (Pickling Safe)
+# ==============================================================================
+class FeatureHook:
+    """
+    Hook to capture feature maps or logits. 
+    Must be present during unpickling if the model was saved with hooks.
+    """
+    def __init__(self, storage, idx):
+        self.storage = storage
+        self.idx = idx
+
+    def __call__(self, module, input, output, **kwargs):
+        self.storage[self.idx] = output
+
+class FeatureAdapter(torch.nn.Module):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        self.adapters = torch.nn.ModuleList()
+
+class KDLoss:
+    pass
+
 def calculate_iou(box1, box2):
     """
     Calculate IoU between two boxes (x, y, w, h) normalized.
