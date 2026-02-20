@@ -188,8 +188,11 @@ def main():
     # 4. 추론 워커 가동
     inference_worker.start()
 
-    # 전처리기 초기화
-    preprocessor = PCBPreprocessor(config.BACKGROUND_PATH)
+    # 카메라별 전처리기 초기화 (상태 오염 방지)
+    preprocessors = {
+        receiver.camera_id: PCBPreprocessor(config.BACKGROUND_PATH)
+        for receiver in receivers
+    }
 
     # 종료 시그널 핸들러
     shutdown_flag = False
@@ -224,6 +227,14 @@ def main():
                 continue
 
             frame_count += 1
+
+            preprocessor = preprocessors.get(camera_id)
+            if preprocessor is None:
+                # 예상치 못한 camera_id가 들어와도 상태를 분리해 처리
+                preprocessor = PCBPreprocessor(config.BACKGROUND_PATH)
+                preprocessors[camera_id] = preprocessor
+                print(f"[Main] 신규 카메라 전처리기 생성: {camera_id}")
+
             cropped = preprocessor.process_frame(frame)
 
             if cropped is not None:
