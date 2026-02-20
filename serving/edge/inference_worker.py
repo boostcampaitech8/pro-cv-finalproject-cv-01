@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 import time
 from datetime import datetime
+from uuid import uuid4
 from ultralytics import YOLO
 from dotenv import load_dotenv
 import config
@@ -38,8 +39,8 @@ class InferenceWorker(threading.Thread):
         self.running = False
 
         # 모델 로드 (Engine 변환 포함)
-        self.model = self._load_model(config.MODEL_PATH)
-        print(f"[InferenceWorker] 모델 로드 완료: {config.MODEL_PATH}")
+        self.model = self._load_model(self.model_path)
+        print(f"[InferenceWorker] 모델 로드 완료: {self.model_path}")
 
     def _load_model(self, model_path: str):
         """
@@ -130,9 +131,13 @@ class InferenceWorker(threading.Thread):
         _, buffer = cv2.imencode('.jpg', crop)
         img_base64 = base64.b64encode(buffer).decode('utf-8')
  
-        # image_id 생성
+        # image_id 생성 (충돌 방지: 마이크로초 + UUID)
         timestamp_now = datetime.now()
-        image_id = f"PCB_{camera_id}_{timestamp_now.strftime('%Y%m%d_%H%M%S')}"
+        image_id = (
+            f"PCB_{camera_id}_"
+            f"{timestamp_now.strftime('%Y%m%d_%H%M%S_%f')}_"
+            f"{uuid4().hex[:8]}"
+        )
  
         return {
             "timestamp": timestamp_now.isoformat(),

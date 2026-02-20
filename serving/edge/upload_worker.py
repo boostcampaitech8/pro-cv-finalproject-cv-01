@@ -5,6 +5,7 @@ import json
 import os
 import time
 from datetime import datetime
+from uuid import uuid4
 import config
 
 class UploadWorker(threading.Thread):
@@ -58,7 +59,13 @@ class UploadWorker(threading.Thread):
 
     def _save_locally(self, payload, image_id):
         """전송 실패한 데이터를 로컬에 JSON으로 저장"""
-        filename = f"{image_id}_{datetime.now().strftime('%H%M%S')}.json"
+        # 파일명 충돌 방지를 위해 마이크로초 + UUID를 추가
+        safe_image_id = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in image_id)
+        filename = (
+            f"{safe_image_id}_"
+            f"{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}_"
+            f"{uuid4().hex[:8]}.json"
+        )
         filepath = os.path.join(config.FAILED_DIR, filename)
         
         try:

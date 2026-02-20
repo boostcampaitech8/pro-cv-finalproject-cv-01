@@ -35,6 +35,7 @@ class DetectRequest(BaseModel):
     """
     timestamp: str = Field(..., description="ISO 8601 timestamp, e.g., '2026-01-14T15:30:45'")
     image_id: str = Field(..., description="Image Identifier, e.g., 'PCB_001234'")
+    camera_id: Optional[str] = Field(None, description="카메라 식별자 (e.g., cam_1)")
     image: Optional[str] = Field(None, description="Base64 encoded image string (optional)")
     detections: List[Detection] = Field(default_factory=list, description="결함 목록 (빈 배열 = 정상)")
     session_id: Optional[int] = Field(None, description="세션 ID (optional)")
@@ -61,6 +62,7 @@ class InspectionLogResponse(BaseModel):
     id: int
     timestamp: str = Field(..., description="ISO 8601 timestamp")
     image_id: str = Field(..., description="Image Identifier")
+    camera_id: Optional[str] = Field(None, description="카메라 식별자")
     result: str = Field(..., description="'defect' or 'normal'")
     detections: List[Detection] = Field(default_factory=list, description="List of detected defects")
     image_path: Optional[str] = Field(None, description="Path to saved image file")

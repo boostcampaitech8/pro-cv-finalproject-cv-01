@@ -44,6 +44,7 @@ async def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL,
                 image_id TEXT NOT NULL,
+                camera_id TEXT,
                 result TEXT NOT NULL,
                 detections TEXT,
                 image_path TEXT,
@@ -55,6 +56,13 @@ async def init_db():
         # 기존 테이블에 session_id 컬럼이 없으면 추가 (마이그레이션)
         try:
             await db.execute("ALTER TABLE inspection_logs ADD COLUMN session_id INTEGER")
+        except Exception:
+            # 컬럼이 이미 존재하면 무시
+            pass
+
+        # 기존 테이블에 camera_id 컬럼이 없으면 추가 (마이그레이션)
+        try:
+            await db.execute("ALTER TABLE inspection_logs ADD COLUMN camera_id TEXT")
         except Exception:
             # 컬럼이 이미 존재하면 무시
             pass
@@ -138,12 +146,13 @@ async def add_inspection_log(data: DetectRequest, image_path: Optional[str] = No
 
         cursor = await db.execute(
             """
-            INSERT INTO inspection_logs (timestamp, image_id, result, detections, image_path, session_id)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO inspection_logs (timestamp, image_id, camera_id, result, detections, image_path, session_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 data.timestamp,
                 data.image_id,
+                data.camera_id,
                 result_status,
                 detections_json,
                 image_path,
@@ -155,26 +164,31 @@ async def add_inspection_log(data: DetectRequest, image_path: Optional[str] = No
         return [cursor.lastrowid]
 
 
-async def get_stats(session_id: Optional[int] = None) -> StatsResponse:
+async def get_stats(session_id: Optional[int] = None, camera_id: Optional[str] = None) -> StatsResponse:
     """
     Calculate statistics from the logs.
     Now requires parsing 'detections' column to count total defects.
-    session_id가 제공되면 해당 세션의 통계만 반환.
+    session_id/camera_id가 제공되면 해당 필터 기준 통계만 반환.
     """
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
 
-        # 세션 필터 조건
-        session_filter = ""
-        session_params = ()
+        filters = []
+        params: List = []
         if session_id is not None:
-            session_filter = " WHERE session_id = ?"
-            session_params = (session_id,)
+            filters.append("session_id = ?")
+            params.append(session_id)
+        if camera_id is not None:
+            filters.append("camera_id = ?")
+            params.append(camera_id)
+
+        base_where = f" WHERE {' AND '.join(filters)}" if filters else ""
+        filter_params = tuple(params)
 
         # 1. Total Inspections (Total Rows)
         cursor = await db.execute(
-            f"SELECT COUNT(*) as cnt FROM inspection_logs{session_filter}",
-            session_params
+            f"SELECT COUNT(*) as cnt FROM inspection_logs{base_where}",
+            filter_params
         )
         row = await cursor.fetchone()
         total_inspections = row["cnt"]
@@ -192,11 +206,13 @@ async def get_stats(session_id: Optional[int] = None) -> StatsResponse:
             )
 
         # 2. Defect Items (Rows where result='defect')
-        defect_filter = " WHERE result='defect'" if not session_filter else " WHERE result='defect' AND session_id = ?"
-        defect_params = () if not session_filter else (session_id,)
+        defect_where = " WHERE result='defect'"
+        if filters:
+            defect_where += f" AND {' AND '.join(filters)}"
+
         cursor = await db.execute(
-            f"SELECT COUNT(*) as cnt FROM inspection_logs{defect_filter}",
-            defect_params
+            f"SELECT COUNT(*) as cnt FROM inspection_logs{defect_where}",
+            filter_params
         )
         row = await cursor.fetchone()
         defect_items = row["cnt"]
@@ -204,8 +220,8 @@ async def get_stats(session_id: Optional[int] = None) -> StatsResponse:
         # 3. Total Defects (Sum of length of detections list in each defect row)
         # SQLite JSON extension might not be enabled, so we fetch and sum in Python.
         cursor = await db.execute(
-            f"SELECT detections FROM inspection_logs{defect_filter}",
-            defect_params
+            f"SELECT detections FROM inspection_logs{defect_where}",
+            filter_params
         )
         rows = await cursor.fetchall()
 
@@ -224,8 +240,8 @@ async def get_stats(session_id: Optional[int] = None) -> StatsResponse:
 
         # 4. Last Defect Log
         cursor = await db.execute(
-            f"SELECT * FROM inspection_logs{defect_filter} ORDER BY id DESC LIMIT 1",
-            defect_params
+            f"SELECT * FROM inspection_logs{defect_where} ORDER BY id DESC LIMIT 1",
+            filter_params
         )
         row = await cursor.fetchone()
 
@@ -236,6 +252,7 @@ async def get_stats(session_id: Optional[int] = None) -> StatsResponse:
                 id=row["id"],
                 timestamp=row["timestamp"],
                 image_id=row["image_id"],
+                camera_id=row["camera_id"],
                 result=row["result"],
                 detections=json.loads(row["detections"]) if row["detections"] else [],
                 image_path=row["image_path"],
@@ -254,24 +271,34 @@ async def get_stats(session_id: Optional[int] = None) -> StatsResponse:
         )
 
 
-async def get_recent_logs(limit: int = 10, session_id: Optional[int] = None) -> List[Dict]:
+async def get_recent_logs(
+    limit: int = 10,
+    session_id: Optional[int] = None,
+    camera_id: Optional[str] = None
+) -> List[Dict]:
     """
     Returns the N most recent logs.
-    session_id가 제공되면 해당 세션의 로그만 반환.
+    session_id/camera_id가 제공되면 해당 필터의 로그만 반환.
     """
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
 
+        filters = []
+        params: List = []
         if session_id is not None:
-            cursor = await db.execute(
-                "SELECT * FROM inspection_logs WHERE session_id = ? ORDER BY id DESC LIMIT ?",
-                (session_id, limit)
-            )
-        else:
-            cursor = await db.execute(
-                "SELECT * FROM inspection_logs ORDER BY id DESC LIMIT ?",
-                (limit,)
-            )
+            filters.append("session_id = ?")
+            params.append(session_id)
+        if camera_id is not None:
+            filters.append("camera_id = ?")
+            params.append(camera_id)
+
+        where_clause = f" WHERE {' AND '.join(filters)}" if filters else ""
+        params.append(limit)
+
+        cursor = await db.execute(
+            f"SELECT * FROM inspection_logs{where_clause} ORDER BY id DESC LIMIT ?",
+            tuple(params)
+        )
         rows = await cursor.fetchall()
 
         result = []
@@ -286,23 +313,28 @@ async def get_recent_logs(limit: int = 10, session_id: Optional[int] = None) -> 
         return result
 
 
-async def get_defect_logs(session_id: Optional[int] = None) -> List[Dict]:
+async def get_defect_logs(session_id: Optional[int] = None, camera_id: Optional[str] = None) -> List[Dict]:
     """
     Returns all logs that are defects.
-    session_id가 제공되면 해당 세션의 결함 로그만 반환.
+    session_id/camera_id가 제공되면 해당 필터의 결함 로그만 반환.
     """
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
 
+        filters = ["result = 'defect'"]
+        params: List = []
         if session_id is not None:
-            cursor = await db.execute(
-                "SELECT * FROM inspection_logs WHERE result = 'defect' AND session_id = ? ORDER BY id DESC",
-                (session_id,)
-            )
-        else:
-            cursor = await db.execute(
-                "SELECT * FROM inspection_logs WHERE result = 'defect' ORDER BY id DESC"
-            )
+            filters.append("session_id = ?")
+            params.append(session_id)
+        if camera_id is not None:
+            filters.append("camera_id = ?")
+            params.append(camera_id)
+
+        where_clause = f" WHERE {' AND '.join(filters)}"
+        cursor = await db.execute(
+            f"SELECT * FROM inspection_logs{where_clause} ORDER BY id DESC",
+            tuple(params)
+        )
         rows = await cursor.fetchall()
 
         result = []
