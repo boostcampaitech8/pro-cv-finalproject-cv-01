@@ -85,7 +85,12 @@ def main():
         return
 
     # Prepare Data
-    data_yaml = dataset.prepare()
+    # If the user passed a specific yaml config (like from Airflow's sync_data), skip parsing
+    if config['data_path'].endswith('.yaml') and os.path.exists(config['data_path']):
+        print(f"Skipping dataset preparation, using existing config: {config['data_path']}")
+        data_yaml = config['data_path']
+    else:
+        data_yaml = dataset.prepare()
 
     # 2. Model Selection
     md_mod_name = config.get('model_module', 'yolov8')

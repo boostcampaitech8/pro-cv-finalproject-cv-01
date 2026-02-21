@@ -12,6 +12,8 @@ class PCBDataset:
     def __init__(self, config):
         self.config = config
         self.data_path = config['data_path']
+        if self.data_path.endswith('.yaml'):
+            self.data_path = os.path.dirname(self.data_path)
         self.images_dir = os.path.join(self.data_path, 'images')
         self.annotations_dir = os.path.join(self.data_path, 'Annotations')
         self.labels_dir = os.path.join(self.data_path, 'labels') # YOLO labels

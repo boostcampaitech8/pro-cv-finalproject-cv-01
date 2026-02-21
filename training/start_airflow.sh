@@ -1,8 +1,8 @@
 #!/bin/bash
 # start_airflow.sh - Automates Airflow 3.x configuration for 8081 port and Jupyter compatibility.
 
-# 1. Set Airflow Home
-export AIRFLOW_HOME=${AIRFLOW_HOME:-/root/airflow}
+# 1. Set Airflow Home to Project Directory
+export AIRFLOW_HOME="/workspace/final_project/training"
 
 # 2. Configure Ports (Avoid 8080 collision with Jupyter)
 export AIRFLOW_WEBSERVER_PORT=8081
