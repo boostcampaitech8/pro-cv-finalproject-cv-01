@@ -64,6 +64,7 @@ class EdgeMetrics:
             "upload_queue_wait_ms": deque(maxlen=latency_buffer_size),
             "upload_ms": deque(maxlen=latency_buffer_size),
             "e2e_ms": deque(maxlen=latency_buffer_size),
+            "upload_payload_kb": deque(maxlen=latency_buffer_size),
         }
 
     def record_input(self, camera_id: str):
@@ -113,6 +114,10 @@ class EdgeMetrics:
             return
         with self._lock:
             self.latencies[name].append(latency_ms)
+
+    def record_upload_payload_bytes(self, size_bytes: int):
+        with self._lock:
+            self.latencies["upload_payload_kb"].append(size_bytes / 1024.0)
 
     def update_queue_depth(self, queue_name: str, depth: int):
         with self._lock:

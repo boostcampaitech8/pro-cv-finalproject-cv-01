@@ -4,6 +4,15 @@ import os
 RTSP_URL = "rtsp://3.36.185.146:8554/pcb_stream"
 API_URL = "http://3.35.182.98:8080/detect/"
 
+# Upload payload optimization (U1)
+# transport: multipart (binary) | json (base64)
+UPLOAD_TRANSPORT = "multipart"
+UPLOAD_JSON_FALLBACK_ENABLED = True
+UPLOAD_IMAGE_JPEG_QUALITY = 75
+UPLOAD_IMAGE_MAX_WIDTH = 960
+UPLOAD_IMAGE_MAX_HEIGHT = 960
+UPLOAD_IMAGE_GRAYSCALE = False
+
 # 모델 경로
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "best.pt")

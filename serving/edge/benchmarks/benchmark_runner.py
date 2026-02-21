@@ -135,6 +135,15 @@ def _parse_log_metrics(log_text: str) -> Dict[str, Any]:
             if value is not None:
                 metrics[key] = value
 
+    payload = re.search(r"upload_payload\(kb\) p50/p95:\s*([0-9.-]+)/([0-9.-]+)", log_text)
+    if payload:
+        p50 = _to_number(payload.group(1))
+        p95 = _to_number(payload.group(2))
+        if p50 is not None:
+            metrics["upload_payload_p50_kb"] = p50
+        if p95 is not None:
+            metrics["upload_payload_p95_kb"] = p95
+
     cam_matches = re.findall(
         r"\[(cam_[0-9]+)\]\s*input=([0-9]+)\s*\([0-9.]+fps\),\s*processed=([0-9]+)\s*\([0-9.]+fps\),\s*inference=([0-9]+),\s*drop=([0-9]+)\s*\(([0-9.]+)%\)",
         log_text,
@@ -312,6 +321,8 @@ def _write_outputs(results: List[Dict[str, Any]], output_root: Path) -> None:
         "upload_wait_p95_ms",
         "upload_p95_ms",
         "e2e_p95_ms",
+        "upload_payload_p50_kb",
+        "upload_payload_p95_kb",
         "max_camera_drop_rate",
         "queue_hwm_frame",
         "queue_hwm_crop",

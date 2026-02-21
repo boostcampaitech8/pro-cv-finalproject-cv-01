@@ -309,6 +309,11 @@ def _print_periodic_metrics(
         f"e2e={format_ms(snapshot['latency']['e2e_ms']['p50'])}/"
         f"{format_ms(snapshot['latency']['e2e_ms']['p95'])}"
     )
+    print(
+        "  upload_payload(kb) p50/p95: "
+        f"{format_ms(snapshot['latency']['upload_payload_kb']['p50'])}/"
+        f"{format_ms(snapshot['latency']['upload_payload_kb']['p95'])}"
+    )
     alerts = _build_queue_alerts(snapshot, previous_snapshot, queue_capacities, queue_alert_state)
     if alerts:
         for alert in alerts:
@@ -445,6 +450,36 @@ def main():
         help="RTSP 자동 재연결 비활성화"
     )
     
+    parser.add_argument(
+        "--upload-transport",
+        choices=["multipart", "json"],
+        default=config.UPLOAD_TRANSPORT,
+        help=f"업로드 전송 포맷 (기본값: {config.UPLOAD_TRANSPORT})"
+    )
+    parser.add_argument(
+        "--upload-jpeg-quality",
+        type=int,
+        default=config.UPLOAD_IMAGE_JPEG_QUALITY,
+        help=f"업로드 JPEG 품질 1~100 (기본값: {config.UPLOAD_IMAGE_JPEG_QUALITY})"
+    )
+    parser.add_argument(
+        "--upload-max-width",
+        type=int,
+        default=config.UPLOAD_IMAGE_MAX_WIDTH,
+        help=f"업로드 이미지 최대 너비(px, 0=원본 유지) (기본값: {config.UPLOAD_IMAGE_MAX_WIDTH})"
+    )
+    parser.add_argument(
+        "--upload-max-height",
+        type=int,
+        default=config.UPLOAD_IMAGE_MAX_HEIGHT,
+        help=f"업로드 이미지 최대 높이(px, 0=원본 유지) (기본값: {config.UPLOAD_IMAGE_MAX_HEIGHT})"
+    )
+    parser.add_argument(
+        "--upload-grayscale",
+        action="store_true",
+        help="업로드 이미지를 grayscale로 인코딩"
+    )
+
     args = parser.parse_args()
 
     # 입력 소스 처리
@@ -475,6 +510,11 @@ def main():
     config.RTSP_HW_DECODE = not args.no_hw_decode
     config.RTSP_LATENCY_MS = max(0, args.rtsp_latency_ms)
     config.RTSP_RECONNECT_ENABLED = not args.no_rtsp_reconnect
+    config.UPLOAD_TRANSPORT = args.upload_transport
+    config.UPLOAD_IMAGE_JPEG_QUALITY = max(1, min(100, int(args.upload_jpeg_quality)))
+    config.UPLOAD_IMAGE_MAX_WIDTH = max(0, int(args.upload_max_width))
+    config.UPLOAD_IMAGE_MAX_HEIGHT = max(0, int(args.upload_max_height))
+    config.UPLOAD_IMAGE_GRAYSCALE = bool(args.upload_grayscale)
 
     # 배경 이미지 확인
     if not os.path.exists(config.BACKGROUND_PATH):
@@ -611,6 +651,13 @@ def main():
         f"hw_decode={'on' if config.RTSP_HW_DECODE else 'off'}, "
         f"latency={config.RTSP_LATENCY_MS}ms, "
         f"reconnect={'on' if config.RTSP_RECONNECT_ENABLED else 'off'}"
+    )
+    print(
+        "  - Upload image: "
+        f"transport={config.UPLOAD_TRANSPORT}, "
+        f"jpeg_quality={config.UPLOAD_IMAGE_JPEG_QUALITY}, "
+        f"max={config.UPLOAD_IMAGE_MAX_WIDTH}x{config.UPLOAD_IMAGE_MAX_HEIGHT}, "
+        f"grayscale={'on' if config.UPLOAD_IMAGE_GRAYSCALE else 'off'}"
     )
     print(f"  - 세션 ID: {session_id if session_id else '없음'}")
     print(f"  - Scavenger: {'활성화' if scavenger_worker else '비활성화'}")
@@ -836,6 +883,11 @@ def main():
             f"{format_ms(final_snapshot['latency']['upload_ms']['p95'])}, "
             f"e2e={format_ms(final_snapshot['latency']['e2e_ms']['p50'])}/"
             f"{format_ms(final_snapshot['latency']['e2e_ms']['p95'])}"
+        )
+        print(
+            "  upload_payload(kb) p50/p95: "
+            f"{format_ms(final_snapshot['latency']['upload_payload_kb']['p50'])}/"
+            f"{format_ms(final_snapshot['latency']['upload_payload_kb']['p95'])}"
         )
         print(
             f"  diagnosis: "
