@@ -20,6 +20,8 @@ def main():
     parser = argparse.ArgumentParser(description="PCB Defect Detection Experiment Runner")
     # Default config is now in ../configs/config.yaml
     parser.add_argument('--config', type=str, default='../configs/config.yaml', help='Path to config file')
+    parser.add_argument('--data', type=str, default=None, help='Overridden data.yaml path for retraining')
+    parser.add_argument('--name', type=str, default=None, help='Experiment name (e.g. run_id)')
     args = parser.parse_args()
 
     # Load Config
@@ -35,6 +37,14 @@ def main():
             
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
+        
+    # Override Config with Args
+    if getattr(args, 'data', None):
+        print(f"🔄 Overriding data path: {args.data}")
+        config['data_path'] = args.data
+    if getattr(args, 'name', None):
+        print(f"🔄 Overriding exp name: {args.name}")
+        config['exp_name'] = args.name
 
     print(f"Loaded config from {args.config}")
 

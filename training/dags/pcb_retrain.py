@@ -38,21 +38,29 @@ with DAG(
         cwd=PROJECT_ROOT
     )
 
-    # 2. Train QAT Model
-    # Uses {{ ts_nodash }} to generate unique experiment name: e.g. pcb_retrain_20240101000000
-    # Inputs: data_retrain.yaml (from t1)
+    # 2. Train FP32 Model (Fine-tuning with new data)
     # Uses run_id for unique experiment name (robust across Airflow versions)
     run_id = "{{ run_id }}"
     
-    t2_train = BashOperator(
-        task_id='train_qat_model',
-        bash_command=f'{PYTHON_BIN} {SCRIPTS_DIR}/train_qat.py --config {MODEL_CONFIG} --data {PROJECT_ROOT}/PCB_DATASET/data_retrain.yaml --name {run_id}',
+    t2_train_fp32 = BashOperator(
+        task_id='train_fp32_model',
+        bash_command=f'{PYTHON_BIN} {SCRIPTS_DIR}/run_exp.py --config {PROJECT_ROOT}/configs/config.yaml --data {PROJECT_ROOT}/PCB_DATASET/data_retrain.yaml --name {run_id}_fp32',
         cwd=PROJECT_ROOT
     )
 
-    # 3. Export to ONNX
+    # 3. Train QAT Model
+    # Inputs: data_retrain.yaml (from t1) and best.pt (from t2)
+    fp32_best_pt = f"{PROJECT_ROOT}/runs/{run_id}_fp32/weights/best.pt"
+    
+    t3_train_qat = BashOperator(
+        task_id='train_qat_model',
+        bash_command=f'{PYTHON_BIN} {SCRIPTS_DIR}/train_qat.py --config {MODEL_CONFIG} --data {PROJECT_ROOT}/PCB_DATASET/data_retrain.yaml --name {run_id}_qat --weights {fp32_best_pt}',
+        cwd=PROJECT_ROOT
+    )
+
+    # 4. Export to ONNX
     export_cmd = f"""
-    RUN_DIR="{PROJECT_ROOT}/runs/qat/{run_id}"
+    RUN_DIR="{PROJECT_ROOT}/runs/qat/{run_id}_qat"
     BEST_PT="${{RUN_DIR}}/weights/best.pt"
     # Check for hybrid first (recalibrated)
     if [ -f "${{RUN_DIR}}/weights/best_hybrid.pt" ]; then
@@ -74,20 +82,20 @@ with DAG(
         cwd=PROJECT_ROOT
     )
     
-    # 4. Register to MLflow (Metadata Only)
+    # 5. Register to MLflow (Metadata Only)
     # Since we are not deploying to edge, we just register the artifact/model in MLflow for record.
     # We pass the ONNX path.
     register_cmd = f"""
-    RUN_DIR="{PROJECT_ROOT}/runs/qat/{run_id}"
+    RUN_DIR="{PROJECT_ROOT}/runs/qat/{run_id}_qat"
     ONNX_PATH="${{RUN_DIR}}/weights/best.onnx"
     
     {PYTHON_BIN} {SCRIPTS_DIR}/register_model.py --model-path "${{ONNX_PATH}}" --tags "run_id={run_id},status=retrained"
     """
     
-    t4_register = BashOperator(
+    t5_register = BashOperator(
         task_id='register_model',
         bash_command=register_cmd,
         cwd=PROJECT_ROOT
     )
 
-    t1_sync >> t2_train >> t3_export >> t4_register
+    t1_sync >> t2_train_fp32 >> t3_train_qat >> t3_export >> t5_register

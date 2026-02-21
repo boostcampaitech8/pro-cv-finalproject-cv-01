@@ -46,6 +46,7 @@ def get_args():
     parser.add_argument('--config', type=str, default='configs/config_qat.yaml', help='Path to QAT config file')
     parser.add_argument('--data', type=str, default=None, help='Overridden data.yaml path for retraining')
     parser.add_argument('--name', type=str, default=None, help='Experiment name (e.g. run_id)')
+    parser.add_argument('--weights', type=str, default=None, help='Overridden pretrained weights path')
     return parser.parse_args()
 
 def main():
@@ -68,6 +69,9 @@ def main():
     if args.name:
         print(f"🔄 Overriding exp name: {args.name}")
         config['exp_name'] = args.name
+    if args.weights:
+        print(f"🔄 Overriding pretrained weights: {args.weights}")
+        config['qat']['pretrained_path'] = args.weights
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.abspath(os.path.join(script_dir, '..'))

@@ -44,6 +44,8 @@ htmlcov/
 training/PCB_DATASET/
 training/runs/
 *.pt
+training/aws/
+runs/
 
 # Tracking
 mlruns/
