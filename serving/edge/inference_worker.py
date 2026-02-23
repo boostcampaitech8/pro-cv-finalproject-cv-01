@@ -186,21 +186,24 @@ class InferenceWorker(threading.Thread):
             5: "Spurious Copper",
         }
 
+        encoded = self._encode_upload_image(crop)
+        if encoded is None:
+            raise RuntimeError("JPEG encoding failed for upload payload")
+        image_bytes, image_w, image_h, scale_x, scale_y = encoded
+
         detections = []
         for box in result.boxes:
             cls_id = int(box.cls[0])
             defect_name = qa_labels.get(cls_id, result.names.get(cls_id, f"class{cls_id}"))
+            raw_bbox = [float(x) for x in box.xyxy[0].tolist()]
+            scaled_bbox = self._scale_bbox(raw_bbox, scale_x, scale_y, image_w, image_h)
             detections.append(
                 {
                     "defect_type": defect_name,
                     "confidence": round(float(box.conf[0]), 4),
-                    "bbox": [int(float(x)) for x in box.xyxy[0].tolist()],
+                    "bbox": scaled_bbox,
                 }
             )
-
-        image_bytes = self._encode_upload_image(crop)
-        if image_bytes is None:
-            raise RuntimeError("JPEG encoding failed for upload payload")
 
         timestamp_now = datetime.now()
         image_id = (
@@ -217,6 +220,28 @@ class InferenceWorker(threading.Thread):
             "session_id": self.session_id,
         }
         return payload, image_bytes
+
+    def _scale_bbox(self, bbox, scale_x, scale_y, image_w, image_h):
+        x1, y1, x2, y2 = bbox
+
+        sx1 = int(round(x1 * scale_x))
+        sy1 = int(round(y1 * scale_y))
+        sx2 = int(round(x2 * scale_x))
+        sy2 = int(round(y2 * scale_y))
+
+        if image_w > 0:
+            sx1 = max(0, min(image_w - 1, sx1))
+            sx2 = max(0, min(image_w - 1, sx2))
+        if image_h > 0:
+            sy1 = max(0, min(image_h - 1, sy1))
+            sy2 = max(0, min(image_h - 1, sy2))
+
+        if image_w > 1 and sx2 <= sx1:
+            sx2 = min(image_w - 1, sx1 + 1)
+        if image_h > 1 and sy2 <= sy1:
+            sy2 = min(image_h - 1, sy1 + 1)
+
+        return [sx1, sy1, sx2, sy2]
 
     def _encode_upload_image(self, crop):
         image = crop
@@ -235,6 +260,10 @@ class InferenceWorker(threading.Thread):
                 interpolation=cv2.INTER_AREA,
             )
 
+        out_h, out_w = image.shape[:2]
+        scale_x = out_w / float(w) if w > 0 else 1.0
+        scale_y = out_h / float(h) if h > 0 else 1.0
+
         ok, buffer = cv2.imencode(
             ".jpg",
             image,
@@ -242,7 +271,7 @@ class InferenceWorker(threading.Thread):
         )
         if not ok:
             return None
-        return buffer.tobytes()
+        return buffer.tobytes(), out_w, out_h, scale_x, scale_y
 
     def stop(self):
         self.running = False
