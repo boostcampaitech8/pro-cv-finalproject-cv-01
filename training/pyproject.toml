@@ -19,5 +19,16 @@ dependencies = [
     "wandb>=0.24.0",
     "boto3>=1.34.0",
     "apache-airflow>=2.8.0",
-    "pytorch-quantization==2.1.2"
+    "pytorch-quantization==2.1.2",
+    "onnx>=1.15.0"
 ]
+
+[tool.uv]
+
+[[tool.uv.index]]
+name = "nvidia"
+url = "https://pypi.nvidia.com"
+explicit = true
+
+[tool.uv.sources]
+pytorch-quantization = { index = "nvidia" }
