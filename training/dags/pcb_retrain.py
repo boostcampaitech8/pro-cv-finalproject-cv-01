@@ -72,7 +72,7 @@ with DAG(
     ONNX_OUTPUT="${{RUN_DIR}}/weights/best.onnx"
     
     echo "Exporting ${{BEST_PT}}..."
-    {PYTHON_BIN} {SCRIPTS_DIR}/export_qat.py --weights "${{BEST_PT}}" --base-weights {PROJECT_ROOT}/runs/yolov11m_640/weights/yolov11m_640.pt --output "${{ONNX_OUTPUT}}"
+    {PYTHON_BIN} {SCRIPTS_DIR}/export_qat.py --weights "${{BEST_PT}}" --base-weights {fp32_best_pt} --output "${{ONNX_OUTPUT}}"
     """
 
 

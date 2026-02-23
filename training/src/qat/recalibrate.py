@@ -17,7 +17,7 @@ def get_args():
     parser.add_argument('--output', type=str, default=None, help='Output path for hybrid model')
     return parser.parse_args()
 
-def run_recalibration(config_path, weights_path, output_path=None):
+def run_recalibration(config_path, weights_path, output_path=None, base_model_path=None):
     """
     Execute the EMA Re-calibration process programmatically.
     
@@ -25,6 +25,7 @@ def run_recalibration(config_path, weights_path, output_path=None):
         config_path (str): Path to QAT configuration YAML.
         weights_path (str): Path to the trained checkpoint (best.pt).
         output_path (str, optional): Custom output path. Defaults to best_hybrid.pt.
+        base_model_path (str, optional): Path to pretrained model to build architecture.
     
     Returns:
         str: Path to the saved hybrid model.
@@ -45,7 +46,9 @@ def run_recalibration(config_path, weights_path, output_path=None):
     print(f"💻 Device: {device}")
 
     # 3. Build Model Structure
-    base_model_path = config['qat']['pretrained_path']
+    if not base_model_path:
+        base_model_path = config['qat']['pretrained_path']
+        
     print(f"🏗️  Building model skeleton from {base_model_path}...")
     model_wrapper = YOLO(base_model_path)
     model = model_wrapper.model

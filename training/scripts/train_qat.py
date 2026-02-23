@@ -105,7 +105,7 @@ def main():
         print(f"📦 Loading pretrained weights: {pretrained_path}")
         if not os.path.exists(pretrained_path):
             print(f"❌ Weights file not found: {pretrained_path}")
-            return
+            sys.exit(1)
 
         # YOLO wrapper to load weights
         yolo_wrapper = YOLO(pretrained_path) 
@@ -219,7 +219,7 @@ def main():
         if os.path.exists(best_pt_path):
             try:
                 # Recalibrate
-                hybrid_path = recalibrate.run_recalibration(args.config, best_pt_path)
+                hybrid_path = recalibrate.run_recalibration(args.config, best_pt_path, base_model_path=pretrained_path)
                 final_model_path = hybrid_path
                 print(f"✅ Full QAT Pipeline Finished. Hybrid Model: {hybrid_path}")
                 
@@ -237,7 +237,7 @@ def main():
         print(f"\n🧪 Starting Test Set Evaluation using {final_model_path}...")
         try:
              # Use the base weights used for training to get the right backbone
-             base_weights = config.get('pretrained_path', os.path.join(project_root, 'yolo11n.pt'))
+             base_weights = config.get('qat', {}).get('pretrained_path', os.path.join(project_root, 'yolo11n.pt'))
              test_model = YOLO(base_weights)
              
              print("💉 Injecting QAT Layers for Test Evaluation...")

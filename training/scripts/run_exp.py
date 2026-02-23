@@ -173,6 +173,7 @@ def main():
         print(f"\nAn error occurred during experiment: {e}")
         import traceback
         traceback.print_exc()
+        sys.exit(1)
     finally:
         # --- Cleanup / Organization Logic ---
         # Delegate to src/utils.py

@@ -256,6 +256,7 @@ class PCBTrainer:
         """
         import os
         from ultralytics import YOLO
+        import mlflow
         
         # Ensure trainer and save_dir exist
         if not hasattr(self.model, 'trainer') or not self.model.trainer:

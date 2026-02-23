@@ -92,7 +92,7 @@ def load_existing_splits(dataset_dir):
     Returns: set of absolute paths (or stems if consistent)
     """
     existing_images = set()
-    for split in ["train.txt", "val.txt"]:
+    for split in ["train.txt", "val.txt", "test_images.txt"]:
         path = Path(dataset_dir) / split
         if path.exists():
             with open(path, "r") as f:
@@ -137,7 +137,13 @@ def create_transient_datasets(dataset_dir, new_stems):
 
     # Helper to convert stems to paths
     def stems_to_paths(stems):
-        return [str((Path(dataset_dir) / "images" / (s + ".jpg")).absolute()) for s in stems]
+        paths = []
+        for s in stems:
+            # Search for the stem in all downloaded images to get the correct path (including any subdirectories if they exist, or the downloaded root)
+            found = list(Path(dataset_dir).rglob(f"{s}.jpg"))
+            if found:
+                paths.append(str(found[0].absolute()))
+        return paths
 
     new_train_paths = stems_to_paths(new_train_stems)
     new_val_paths = stems_to_paths(new_val_stems)
@@ -170,7 +176,7 @@ def create_transient_datasets(dataset_dir, new_stems):
         with open(orig_yaml_path, 'r') as f:
             data_config = yaml.safe_load(f)
             names = data_config.get('names', {})
-            nc = data_config.get('nc', 0)
+            nc = data_config.get('nc', len(names))
     else:
         # Fallback: PCB defect class names (from config.settings CLASS_ID_MAP)
         names = {
@@ -219,7 +225,7 @@ def main():
     existing_stems = {Path(p).stem for p in existing_paths}
     
     # Identify truly new stems (On disk BUT NOT in existing splits)
-    new_stems = list(all_stems)
+    new_stems = list(all_stems - existing_stems)
     
     print(f"🔎 Scanning: Found {len(all_stems)} images on disk, {len(existing_stems)} already in splits.")
     print(f"✨ Identified {len(new_stems)} unassigned images.")
