@@ -66,6 +66,45 @@ Coded by www.creative-tim.com
         transform: rotate(360deg);
       }
     }
+
+    /* FN BBox Drawing Mode */
+    .image-container.fn-draw-mode {
+      cursor: crosshair;
+    }
+
+    .fn-bbox-drawn {
+      position: absolute;
+      border: 2px dashed #28a745;
+      background-color: rgba(40, 167, 69, 0.08);
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    .fn-bbox-label {
+      position: absolute;
+      top: -18px;
+      left: -2px;
+      background-color: #28a745;
+      color: white;
+      font-size: 10px;
+      padding: 1px 5px;
+      white-space: nowrap;
+    }
+
+    .fn-draw-hint {
+      position: absolute;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.55);
+      color: #fff;
+      padding: 4px 14px;
+      border-radius: 12px;
+      font-size: 12px;
+      z-index: 110;
+      pointer-events: none;
+      display: none;
+    }
   </style>
 </head>
 
@@ -158,6 +197,10 @@ Coded by www.creative-tim.com
                   <img id="main-image" src="" alt="Select a defect log to view image" style="display: none;">
                   <div id="bbox-container"
                     style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
+                  <div id="fn-draw-overlay"
+                    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 105; display: none;">
+                  </div>
+                  <span class="fn-draw-hint" id="fn-draw-hint">🖱 Drag on image to mark missed defect</span>
                 </div>
                 <div class="mt-3 d-flex justify-content-between align-items-center">
                   <div>
@@ -202,7 +245,7 @@ Coded by www.creative-tim.com
         <div class="row" style="margin-top: 30px;">
           <!-- Left Sub-col: Unified Input Form (Wider) -->
           <div class="col-md-8" style="flex: 0 0 60%; max-width: 60%;">
-            <div class="card" style="height: 320px;">
+            <div class="card" style="min-height: 320px;">
               <div class="card-header">
                 <h5 class="card-title" id="feedback-form-title">Feedback</h5>
               </div>
@@ -273,6 +316,8 @@ Coded by www.creative-tim.com
                       <div class="text-right mt-2">
                         <button type="button" class="btn btn-sm btn-secondary" id="cancel-selection-btn"
                           style="display:none;">Cancel Box</button>
+                        <button type="button" class="btn btn-sm btn-outline-danger" id="clear-fn-bbox-btn"
+                          style="display:none;">Clear BBox</button>
                         <button type="button" class="btn btn-sm btn-success" id="add-to-queue-btn">Add to
                           Queue</button>
                       </div>
@@ -697,6 +742,9 @@ Coded by www.creative-tim.com
             // If image is already loaded and src matches (re-click), manually trigger load or just call update
             // mainImage.trigger('load'); // Safe option
           }
+
+          // Reset form to FN mode & enable drawing
+          resetUnifiedForm();
         }
       });
 
@@ -860,6 +908,114 @@ Coded by www.creative-tim.com
       });
 
 
+      // --- FN BBox Drawing Logic ---
+      let fnDrawing = false;
+      let fnStartX = 0, fnStartY = 0;
+      let drawnFnBbox = null; // { x1, y1, x2, y2 } in original image coords
+
+      function toggleFnDrawMode(enable) {
+        const container = $('.image-container');
+        const overlay = $('#fn-draw-overlay');
+        const hint = $('#fn-draw-hint');
+        if (enable && selectedLog) {
+          container.addClass('fn-draw-mode');
+          overlay.show();
+          hint.show();
+        } else {
+          container.removeClass('fn-draw-mode');
+          overlay.hide();
+          hint.hide();
+          clearFnDrawing();
+        }
+      }
+
+      function clearFnDrawing() {
+        $('#fn-draw-overlay').empty();
+        drawnFnBbox = null;
+        $('#clear-fn-bbox-btn').hide();
+        $('#fn-draw-hint').show();
+      }
+
+      // Clear BBox button
+      $('#clear-fn-bbox-btn').on('click', function () {
+        clearFnDrawing();
+      });
+
+      // Mouse events on the drawing overlay
+      $(document).on('mousedown', '#fn-draw-overlay', function (e) {
+        if (!$('#fb-fn').is(':checked')) return;
+        e.preventDefault();
+        fnDrawing = true;
+        const rect = this.getBoundingClientRect();
+        fnStartX = e.clientX - rect.left;
+        fnStartY = e.clientY - rect.top;
+        // Clear previous drawing
+        $(this).empty();
+        drawnFnBbox = null;
+        // Create the drawing rect
+        const box = $('<div>').addClass('fn-bbox-drawn').css({
+          left: fnStartX + 'px', top: fnStartY + 'px',
+          width: '0px', height: '0px'
+        });
+        box.append($('<span>').addClass('fn-bbox-label').text('FN'));
+        $(this).append(box);
+      });
+
+      $(document).on('mousemove', '#fn-draw-overlay', function (e) {
+        if (!fnDrawing) return;
+        e.preventDefault();
+        const rect = this.getBoundingClientRect();
+        const curX = e.clientX - rect.left;
+        const curY = e.clientY - rect.top;
+        const box = $(this).find('.fn-bbox-drawn');
+        const x = Math.min(fnStartX, curX);
+        const y = Math.min(fnStartY, curY);
+        const w = Math.abs(curX - fnStartX);
+        const h = Math.abs(curY - fnStartY);
+        box.css({ left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' });
+      });
+
+      $(document).on('mouseup', '#fn-draw-overlay', function (e) {
+        if (!fnDrawing) return;
+        fnDrawing = false;
+        const rect = this.getBoundingClientRect();
+        const curX = e.clientX - rect.left;
+        const curY = e.clientY - rect.top;
+
+        // Screen coords of drawn box
+        const sx1 = Math.min(fnStartX, curX);
+        const sy1 = Math.min(fnStartY, curY);
+        const sx2 = Math.max(fnStartX, curX);
+        const sy2 = Math.max(fnStartY, curY);
+
+        // Ignore tiny accidental clicks
+        if ((sx2 - sx1) < 5 || (sy2 - sy1) < 5) {
+          $(this).empty();
+          return;
+        }
+
+        // Convert screen coords to original image coords
+        const img = document.getElementById('main-image');
+        if (!img || !img.naturalWidth) return;
+        const scaleX = img.naturalWidth / img.width;
+        const scaleY = img.naturalHeight / img.height;
+        const offsetLeft = img.offsetLeft;
+        const offsetTop = img.offsetTop;
+
+        drawnFnBbox = {
+          x1: Math.round((sx1 - offsetLeft) * scaleX),
+          y1: Math.round((sy1 - offsetTop) * scaleY),
+          x2: Math.round((sx2 - offsetLeft) * scaleX),
+          y2: Math.round((sy2 - offsetTop) * scaleY)
+        };
+
+        // Update label with selected class
+        const selectedClass = $('#unified-correct-class-select').val() || 'Unknown';
+        $(this).find('.fn-bbox-label').text('FN: ' + selectedClass);
+        $('#fn-draw-hint').hide();
+        $('#clear-fn-bbox-btn').show();
+      });
+
       // --- Unified Form & Queue Logic ---
 
       function resetUnifiedForm() {
@@ -873,35 +1029,45 @@ Coded by www.creative-tim.com
         $('#fb-fn').prop('checked', true).prop('disabled', false);
         $('#fb-fp').prop('disabled', true);
         $('#fb-wrong').prop('disabled', true);
-        $('#unified-correct-class-group').hide();
+        $('#unified-correct-class-group').show(); // Show for FN too
         $('#unified-comment').attr('placeholder', 'Enter details for missing defect...');
         $('#feedback-form-title').text('Feedback');
+
+        // Re-enable FN draw mode
+        toggleFnDrawMode(true);
       }
 
       function activateUnifiedForm(index, defect) {
         resetUnifiedForm(); // Start clean
 
+        // Disable FN draw mode when box is selected
+        toggleFnDrawMode(false);
+
         $('#unified-feedback-form').data('bboxIndex', index);
-        $('#target-box-id').text(index); // Or use defect type info?
+        $('#target-box-id').text(index);
         $('#form-context-info').show();
         $('#cancel-selection-btn').show();
 
         // Set Box Mode
-        $('#fb-fn').prop('disabled', true); // Cannot be FN if box is selected
-        $('#fb-fp').prop('disabled', false).prop('checked', true); // Default to FP?
+        $('#fb-fn').prop('disabled', true);
+        $('#fb-fp').prop('disabled', false).prop('checked', true);
         $('#fb-wrong').prop('disabled', false);
+        $('#unified-correct-class-group').hide(); // FP doesn't need class dropdown
 
         $('#unified-comment').attr('placeholder', `Feedback for ${defect.type}...`);
-        $('#feedback-form-title').text('Box Feedback');
+        $('#feedback-form-title').text('Feedback');
       }
 
       // Handle Feedback Type Change (Unified)
       $('input[name="feedbackTypeUnified"]').on('change', function () {
-        if ($(this).val() === 'tp_wrong_class') {
+        const val = $(this).val();
+        if (val === 'tp_wrong_class' || val === 'false_negative') {
           $('#unified-correct-class-group').show();
         } else {
           $('#unified-correct-class-group').hide();
         }
+        // Toggle FN drawing mode
+        toggleFnDrawMode(val === 'false_negative');
       });
 
       // Add to Queue Button
@@ -922,8 +1088,14 @@ Coded by www.creative-tim.com
           bboxIndex: bboxIndex // undefined if global
         };
 
-        if (type === 'tp_wrong_class') {
+        if (type === 'tp_wrong_class' || type === 'false_negative') {
           item.correctLabel = correctLabel;
+        }
+
+        // Attach drawn FN bbox if available
+        if (type === 'false_negative' && drawnFnBbox) {
+          item.target_bbox = [drawnFnBbox.x1, drawnFnBbox.y1, drawnFnBbox.x2, drawnFnBbox.y2];
+          clearFnDrawing();
         }
 
         // Store target_bbox immediately to ensure validity against current defects
@@ -981,9 +1153,10 @@ Coded by www.creative-tim.com
           let typeText = item.type;
 
           if (item.type === 'false_negative') {
-            label = 'Global (FN)';
+            const hasBbox = item.target_bbox && item.target_bbox.length === 4;
+            label = hasBbox ? `BBox [${item.target_bbox.join(',')}]` : 'Global (FN)';
             badgeClass = 'badge-warning';
-            typeText = 'False Negative';
+            typeText = item.correctLabel ? `FN: ${item.correctLabel}` : 'False Negative';
           } else if (item.type === 'false_positive') {
             label = `Box #${item.bboxIndex}`;
             badgeClass = 'badge-danger';

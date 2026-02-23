@@ -215,13 +215,16 @@ class FeedbackItem(BaseModel):
         from config.settings import ALLOWED_FEEDBACK_LABELS
 
         # FeedbackRequest와 동일한 검증 로직 재사용 (DRY 원칙)
-        if self.feedback_type == 'tp_wrong_class':
+        if self.feedback_type in ['tp_wrong_class', 'false_negative']:
             if not self.correct_label:
-                raise ValueError("correct_label required for tp_wrong_class")
+                raise ValueError(f"correct_label required for {self.feedback_type}")
             if self.correct_label not in ALLOWED_FEEDBACK_LABELS:
                 raise ValueError(f"correct_label must be one of {ALLOWED_FEEDBACK_LABELS}")
+            # FN인데 "normal"은 모순 (결함을 놓친 것이므로 결함 타입이어야 함)
+            if self.feedback_type == 'false_negative' and self.correct_label == 'normal':
+                raise ValueError("false_negative의 correct_label은 'normal'일 수 없습니다")
 
-        if self.feedback_type in ['false_positive', 'tp_wrong_class']:
+        if self.feedback_type in ['false_positive', 'tp_wrong_class', 'false_negative']:
             if not self.target_bbox:
                 raise ValueError(f"target_bbox required for {self.feedback_type}")
 
@@ -240,8 +243,8 @@ class BulkFeedbackRequest(BaseModel):
     """
     다중 bbox 피드백 생성 요청 (자동 재라벨링)
 
-    false_negative는 feedbacks 배열에 포함하여 제출:
-    {"feedback_type": "false_negative", "comment": "좌측 하단 scratch 누락"}
+    false_negative는 bbox + correct_label 필수:
+    {"feedback_type": "false_negative", "target_bbox": [150, 200, 300, 350], "correct_label": "scratch", "comment": "좌측 하단 scratch 누락"}
     """
     log_id: int = Field(..., gt=0)
     image_width: int = Field(..., gt=0, description="크롭된 이미지 너비 (픽셀)")

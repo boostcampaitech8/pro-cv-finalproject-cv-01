@@ -106,10 +106,10 @@ async def create_bulk_feedback(request: BulkFeedbackRequest):
        - 피드백 없음 → 원본 유지 (암묵적 TP)
        - tp_wrong_class → 클래스 수정
        - false_positive → 삭제
+       - false_negative → bbox + correct_label로 라벨 추가
     4. S3 refined/ 저장 (이미지 복사 + 라벨 생성)
     5. DB 피드백 저장 (피드백 있는 bbox만)
-    6. FALSE_NEGATIVE 처리 (있으면)
-    7. inspection_logs.is_verified = true
+    6. inspection_logs.is_verified = true
 
     Example:
         POST /feedback/bulk
@@ -130,12 +130,16 @@ async def create_bulk_feedback(request: BulkFeedbackRequest):
               "comment": "hole이 아니라 scratch"
             },
             {
+              "target_bbox": [150, 200, 300, 350],
               "feedback_type": "false_negative",
+              "correct_label": "scratch",
               "comment": "좌측 하단 scratch 누락"
             },
             {
+              "target_bbox": [400, 450, 500, 520],
               "feedback_type": "false_negative",
-              "comment": "우측 상단 hole 누락"
+              "correct_label": "mouse_bite",
+              "comment": "우측 상단 mouse_bite 누락"
             }
           ],
           "created_by": "qa_team"
@@ -168,7 +172,7 @@ async def create_bulk_feedback(request: BulkFeedbackRequest):
         fn_feedbacks = [f for f in feedbacks_data if f["feedback_type"] == "false_negative"]
         non_fn_feedbacks = [f for f in feedbacks_data if f["feedback_type"] != "false_negative"]
 
-        # 3. 최종 라벨 생성
+        # 3. 최종 라벨 생성 (원본 detection 기반)
         final_labels = []
         feedback_ids = []
 
@@ -198,13 +202,20 @@ async def create_bulk_feedback(request: BulkFeedbackRequest):
                     "bbox": normalize_bbox(bbox, request.image_width, request.image_height)
                 })
 
-        # 4. S3 refined/ 저장
-        # FN 피드백이 있으면 라벨이 불완전하므로 refined에 저장하지 않음
-        # (needs_labeling에서 수동 라벨링 후 별도 저장해야 함)
+        # 3-1. FN bbox를 final_labels에 추가 (bbox + correct_label 필수)
+        for fn in fn_feedbacks:
+            fn_class_id = get_class_id(fn["correct_label"])
+            if fn_class_id != -1:
+                final_labels.append({
+                    "class_id": fn_class_id,
+                    "bbox": normalize_bbox(fn["target_bbox"], request.image_width, request.image_height)
+                })
+
+        # 4. S3 refined/ 저장 (FN bbox 포함하여 완전한 라벨)
         refined_path = None
         saved_to_s3 = False
 
-        if not fn_feedbacks and (final_labels or len(original_detections) > 0):
+        if final_labels or len(original_detections) > 0:
             # class_id가 -1인 라벨 필터링 (알 수 없는 결함 타입)
             valid_labels = [l for l in final_labels if l["class_id"] != -1]
             try:
@@ -233,21 +244,8 @@ async def create_bulk_feedback(request: BulkFeedbackRequest):
             )
             feedback_ids.append(feedback_data["id"])
 
-        # 6. FALSE_NEGATIVE 처리 (다중 지원)
+        # 6. FN 개수 집계 (응답용)
         fn_count = len(fn_feedbacks)
-        if fn_feedbacks:
-            fn_comments = [f.get("comment", "") for f in fn_feedbacks if f.get("comment")]
-            try:
-                await s3_dataset.copy_to_needs_labeling(
-                    image_s3_key=image_s3_key,
-                    log_id=request.log_id,
-                    fn_comments=fn_comments,
-                    original_detections=original_detections,
-                    bbox_feedbacks=non_fn_feedbacks
-                )
-            except Exception as e:
-                logger.error(f"[S3] Failed to copy to needs_labeling for log_id={request.log_id}: {e}")
-                # FALSE_NEGATIVE는 실패해도 계속 진행 (DB에는 저장됨)
 
         # 7. 검증 완료 표시
         await db.mark_as_verified(request.log_id, request.created_by)
