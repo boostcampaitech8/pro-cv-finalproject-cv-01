@@ -656,18 +656,13 @@ Coded by www.creative-tim.com
         // Deprecated, kept empty or removed.
       }
 
-      // Image Load Handler for Smart Resizing
-      mainImage.on('load', function () {
-        $('#image-loader').hide(); // Hide loader when image is ready
-        $(this).show(); // Show image
-        const img = this;
-        const container = $(this).parent();
-        const containerW = container.width(); // Inner width (minus padding)
-        const containerH = container.height(); // Inner height (minus padding)
+      function fitImageToContainer() {
+        const img = mainImage[0];
+        if (!img || !img.naturalWidth) return;
 
-        // Reset styles to calculate natural size correctly if needed, 
-        // but naturalWidth/Height are independent of CSS.
-        // However, we need to set width/height CSS based on aspect ratio comparison.
+        const container = $(img).parent();
+        const containerW = container.width();
+        const containerH = container.height();
 
         const imgAR = img.naturalWidth / img.naturalHeight;
         const containerAR = containerW / containerH;
@@ -680,11 +675,50 @@ Coded by www.creative-tim.com
           $(img).css({ 'width': 'auto', 'height': '100%' });
         }
 
-        // Now draw BBoxes with new dimensions
+        // Redraw all boxes
         updateBBox(currentDefects);
-        // Now draw BBoxes with new dimensions
-        updateBBox(currentDefects);
+        redrawFnBbox();
+      }
+
+      // Image Load Handler for Smart Resizing
+      mainImage.on('load', function () {
+        $('#image-loader').hide(); // Hide loader when image is ready
+        $(this).show(); // Show image
+        fitImageToContainer();
       });
+
+      // Window resize handler
+      $(window).on('resize', function () {
+        fitImageToContainer();
+      });
+
+      // Redraw FN bbox helper
+      function redrawFnBbox() {
+        if (!drawnFnBbox) return;
+        const overlay = $('#fn-draw-overlay');
+        overlay.empty();
+
+        const img = document.getElementById('main-image');
+        if (!img || !img.naturalWidth || !img.width) return;
+
+        const scaleX = img.width / img.naturalWidth;
+        const scaleY = img.height / img.naturalHeight;
+        const offsetLeft = img.offsetLeft;
+        const offsetTop = img.offsetTop;
+
+        const sx1 = (drawnFnBbox.x1 * scaleX) + offsetLeft;
+        const sy1 = (drawnFnBbox.y1 * scaleY) + offsetTop;
+        const sx2 = (drawnFnBbox.x2 * scaleX) + offsetLeft;
+        const sy2 = (drawnFnBbox.y2 * scaleY) + offsetTop;
+
+        const box = $('<div>').addClass('fn-bbox-drawn').css({
+          left: sx1 + 'px', top: sy1 + 'px',
+          width: (sx2 - sx1) + 'px', height: (sy2 - sy1) + 'px'
+        });
+        const selectedClass = $('#unified-correct-class-select').val() || 'Unknown';
+        box.append($('<span>').addClass('fn-bbox-label').text('FN: ' + selectedClass));
+        overlay.append(box);
+      }
 
       let currentLogConfidence = 0; // Global to store average confidence for revert
 
@@ -1068,6 +1102,14 @@ Coded by www.creative-tim.com
         }
         // Toggle FN drawing mode
         toggleFnDrawMode(val === 'false_negative');
+      });
+
+      // Update FN label when class changes
+      $('#unified-correct-class-select').on('change', function () {
+        if ($('#fb-fn').is(':checked') && drawnFnBbox) {
+          const selectedClass = $(this).val() || 'Unknown';
+          $('.fn-bbox-label').text('FN: ' + selectedClass);
+        }
       });
 
       // Add to Queue Button
