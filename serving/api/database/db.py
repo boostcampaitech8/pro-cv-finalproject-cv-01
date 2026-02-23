@@ -109,6 +109,12 @@ async def init_db():
         except Exception:
             pass
 
+        # VLM 분석 결과 캐싱 컬럼
+        try:
+            await db.execute("ALTER TABLE inspection_logs ADD COLUMN vlm_analysis TEXT")
+        except Exception:
+            pass
+
         await db.commit()
 
 
@@ -1283,3 +1289,19 @@ async def get_inspection_log(log_id: int) -> Optional[Dict]:
         if row:
             return dict(row)
         return None
+
+
+async def save_vlm_analysis(log_id: int, analysis: dict) -> None:
+    """
+    VLM 분석 결과를 DB에 캐싱
+
+    Args:
+        log_id: 검사 로그 ID
+        analysis: VLM 분석 결과 딕셔너리
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE inspection_logs SET vlm_analysis = ? WHERE id = ?",
+            (json.dumps(analysis, ensure_ascii=False), log_id)
+        )
+        await db.commit()

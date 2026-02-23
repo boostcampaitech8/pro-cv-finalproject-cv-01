@@ -54,6 +54,9 @@ ALERT_THRESHOLDS = {
     "avg_defects_per_item_critical": 3.0,
 }
 
+# Gemini API Settings (VLM 분석용)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
 # Slack Webhook Settings
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")  # 환경변수로 관리
 SLACK_ALERT_ENABLED = os.getenv("SLACK_ALERT_ENABLED", "false").lower() == "true"

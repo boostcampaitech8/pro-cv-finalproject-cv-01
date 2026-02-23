@@ -352,6 +352,45 @@ class FeedbackStatsResponse(BaseModel):
     )
 
 
+# ===== VLM 분석 관련 스키마 =====
+
+class DefectAnalysis(BaseModel):
+    """
+    VLM 개별 결함 분석 결과
+    """
+    defect_index: int = Field(..., description="결함 인덱스")
+    defect_type: Optional[str] = Field(None, description="결함 유형")
+    confidence: Optional[float] = Field(None, description="YOLO 신뢰도")
+    bbox: Optional[List[int]] = Field(None, description="바운딩 박스 [x1, y1, x2, y2]")
+    severity: str = Field(..., description="심각도 (critical/high/medium/low)")
+    description: str = Field(..., description="결함 외관 설명")
+    possible_cause: str = Field(..., description="추정 원인")
+    recommendation: str = Field(..., description="권장 조치")
+
+
+class VLMAnalysisResult(BaseModel):
+    """
+    VLM 분석 결과 전체
+    """
+    summary: str = Field(..., description="종합 소견")
+    overall_severity: str = Field(..., description="전체 심각도")
+    defect_analyses: List[DefectAnalysis] = Field(..., description="결함별 상세 분석")
+    pattern_analysis: Optional[str] = Field(None, description="복합 패턴 분석")
+    quality_score: int = Field(..., ge=0, le=100, description="품질 점수 (0~100)")
+    process_recommendation: Optional[str] = Field(None, description="공정 개선 권고사항")
+    model: str = Field(..., description="사용된 모델명")
+    analyzed_at: str = Field(..., description="분석 시각 (ISO 8601)")
+
+
+class VLMAnalysisResponse(BaseModel):
+    """
+    VLM 분석 API 응답
+    """
+    log_id: int = Field(..., description="검사 로그 ID")
+    status: str = Field(..., description="cached 또는 analyzed")
+    analysis: VLMAnalysisResult = Field(..., description="분석 결과")
+
+
 class FeedbackQueueResponse(BaseModel):
     """
     라벨링 대기열 아이템
