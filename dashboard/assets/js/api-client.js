@@ -83,6 +83,16 @@ const ApiClient = {
             console.error("Error fetching alerts:", error);
             return null;
         }
+    },
+
+    // VLM 결함 분석 API
+    getAnalysis: async (logId) => {
+        const response = await fetch(`${API_BASE_URL}/analysis/${logId}`);
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || "분석 요청 실패");
+        }
+        return await response.json();
     }
 };
 

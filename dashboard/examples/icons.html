@@ -164,9 +164,14 @@ Coded by www.creative-tim.com
                     <h6 id="image-details-title">Select a log entry to see details</h6>
                     <p id="image-details-desc">-</p>
                   </div>
-                  <div class="custom-control custom-switch">
-                    <input type="checkbox" class="custom-control-input" id="bboxToggle" checked>
-                    <label class="custom-control-label" for="bboxToggle">Show BBox</label>
+                  <div class="d-flex align-items-center">
+                    <button type="button" class="btn btn-sm btn-info mr-3" id="vlm-analysis-btn" style="display: none;" onclick="showVLMAnalysis()">
+                      <i class="fa fa-magic"></i> AI 분석
+                    </button>
+                    <div class="custom-control custom-switch">
+                      <input type="checkbox" class="custom-control-input" id="bboxToggle" checked>
+                      <label class="custom-control-label" for="bboxToggle">Show BBox</label>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -310,6 +315,79 @@ Coded by www.creative-tim.com
 
     </div>
   </div>
+
+  <!-- VLM 분석 모달 -->
+  <div class="modal fade" id="vlmAnalysisModal" tabindex="-1" role="dialog" aria-labelledby="vlmAnalysisModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="vlmAnalysisModalLabel">
+            <i class="fa fa-magic"></i> AI 결함 분석 리포트
+          </h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body" id="vlm-modal-body">
+          <!-- 로딩 상태 -->
+          <div id="vlm-loading" class="text-center py-5">
+            <div class="loader" style="display: inline-block; position: static; margin: 0;"></div>
+            <p class="mt-3 text-muted">AI가 결함을 분석하고 있습니다...</p>
+            <p class="text-muted" style="font-size: 12px;">Gemini 2.0 Flash로 이미지를 직접 분석 중</p>
+          </div>
+          <!-- 에러 상태 -->
+          <div id="vlm-error" style="display: none;" class="text-center py-5">
+            <i class="fa fa-exclamation-triangle text-danger" style="font-size: 48px;"></i>
+            <p class="mt-3 text-danger" id="vlm-error-message">분석 실패</p>
+            <button type="button" class="btn btn-sm btn-outline-info mt-2" onclick="showVLMAnalysis()">
+              <i class="fa fa-refresh"></i> 다시 시도
+            </button>
+          </div>
+          <!-- 결과 상태 -->
+          <div id="vlm-result" style="display: none;">
+            <!-- 종합 소견 카드 -->
+            <div class="card mb-3" style="border-left: 4px solid #51cbce;">
+              <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <h6 class="mb-0">종합 소견</h6>
+                  <div>
+                    <span class="badge" id="vlm-severity-badge">-</span>
+                    <span class="badge badge-secondary ml-1" id="vlm-cache-badge" style="display: none;">캐시</span>
+                  </div>
+                </div>
+                <p class="mb-2" id="vlm-summary" style="font-size: 14px;">-</p>
+                <div class="d-flex align-items-center">
+                  <span style="font-size: 13px; color: #666;">품질 점수:</span>
+                  <div class="progress ml-2" style="width: 120px; height: 8px;">
+                    <div class="progress-bar" id="vlm-quality-bar" role="progressbar" style="width: 0%;"></div>
+                  </div>
+                  <span class="ml-2 font-weight-bold" id="vlm-quality-score" style="font-size: 14px;">-</span>
+                </div>
+              </div>
+            </div>
+            <!-- 패턴 분석 -->
+            <div class="alert alert-info py-2 px-3" id="vlm-pattern-box" style="display: none; font-size: 13px;">
+              <strong><i class="fa fa-link"></i> 패턴 분석:</strong>
+              <span id="vlm-pattern-text">-</span>
+            </div>
+            <!-- 공정 개선 권고 -->
+            <div class="alert alert-warning py-2 px-3" id="vlm-process-box" style="display: none; font-size: 13px;">
+              <strong><i class="fa fa-wrench"></i> 공정 개선:</strong>
+              <span id="vlm-process-text">-</span>
+            </div>
+            <!-- 결함별 상세 분석 -->
+            <h6 class="mt-3 mb-2">결함별 상세 분석</h6>
+            <div id="vlm-defect-cards"></div>
+            <!-- 하단 메타 -->
+            <div class="text-right mt-3" style="font-size: 11px; color: #999;">
+              <span id="vlm-analyzed-at">-</span> | <span id="vlm-model">-</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!--   Core JS Files   -->
   <script src="../assets/js/core/jquery.min.js"></script>
   <script src="../assets/js/core/popper.min.js"></script>
@@ -696,6 +774,13 @@ Coded by www.creative-tim.com
           if (mainImage.attr('src') === selectedLog.image && mainImage[0].complete) {
             // If image is already loaded and src matches (re-click), manually trigger load or just call update
             // mainImage.trigger('load'); // Safe option
+          }
+
+          // AI 분석 버튼 표시/숨김
+          if (selectedLog.defects && selectedLog.defects.length > 0) {
+            $('#vlm-analysis-btn').show();
+          } else {
+            $('#vlm-analysis-btn').hide();
           }
         }
       });
@@ -1134,7 +1219,153 @@ Coded by www.creative-tim.com
       // Select first item by default
       $('.defect-row').first().click();
 
+      // ===== VLM 분석 관련 함수 =====
 
+      // 심각도별 뱃지 스타일
+      function getSeverityBadge(severity) {
+        const map = {
+          'critical': { class: 'badge-danger', text: 'Critical' },
+          'high': { class: 'badge-warning', text: 'High' },
+          'medium': { class: 'badge-info', text: 'Medium' },
+          'low': { class: 'badge-success', text: 'Low' }
+        };
+        return map[severity] || { class: 'badge-secondary', text: severity };
+      }
+
+      // 심각도별 카드 보더 색상
+      function getSeverityColor(severity) {
+        const map = {
+          'critical': '#ef8157',
+          'high': '#fbc658',
+          'medium': '#51bcda',
+          'low': '#6bd098'
+        };
+        return map[severity] || '#999';
+      }
+
+      // VLM 분석 모달 표시
+      window.showVLMAnalysis = function() {
+        if (!selectedLog) {
+          alert('먼저 결함 로그를 선택해주세요.');
+          return;
+        }
+
+        const logId = selectedLog.id;
+
+        // 모달 상태 초기화
+        $('#vlm-loading').show();
+        $('#vlm-error').hide();
+        $('#vlm-result').hide();
+
+        // 모달 열기
+        $('#vlmAnalysisModal').modal('show');
+
+        // API 호출
+        ApiClient.getAnalysis(logId)
+          .then(function(data) {
+            renderVLMResult(data);
+          })
+          .catch(function(err) {
+            showVLMError(err.message);
+          });
+      };
+
+      // VLM 결과 렌더링
+      function renderVLMResult(data) {
+        $('#vlm-loading').hide();
+        $('#vlm-error').hide();
+        $('#vlm-result').show();
+
+        const analysis = data.analysis;
+
+        // 캐시 뱃지
+        if (data.status === 'cached') {
+          $('#vlm-cache-badge').show();
+        } else {
+          $('#vlm-cache-badge').hide();
+        }
+
+        // 심각도 뱃지
+        const sevBadge = getSeverityBadge(analysis.overall_severity);
+        $('#vlm-severity-badge')
+          .text(sevBadge.text)
+          .attr('class', 'badge ' + sevBadge.class);
+
+        // 종합 소견
+        $('#vlm-summary').text(analysis.summary);
+
+        // 품질 점수
+        const score = analysis.quality_score;
+        $('#vlm-quality-score').text(score + '/100');
+        let barColor = '#6bd098';
+        if (score < 30) barColor = '#ef8157';
+        else if (score < 60) barColor = '#fbc658';
+        else if (score < 80) barColor = '#51bcda';
+        $('#vlm-quality-bar')
+          .css({ 'width': score + '%', 'background-color': barColor });
+
+        // 패턴 분석
+        if (analysis.pattern_analysis) {
+          $('#vlm-pattern-box').show();
+          $('#vlm-pattern-text').text(analysis.pattern_analysis);
+        } else {
+          $('#vlm-pattern-box').hide();
+        }
+
+        // 공정 개선 권고
+        if (analysis.process_recommendation) {
+          $('#vlm-process-box').show();
+          $('#vlm-process-text').text(analysis.process_recommendation);
+        } else {
+          $('#vlm-process-box').hide();
+        }
+
+        // 결함별 상세 카드
+        const cardsContainer = $('#vlm-defect-cards');
+        cardsContainer.empty();
+
+        if (analysis.defect_analyses && analysis.defect_analyses.length > 0) {
+          analysis.defect_analyses.forEach(function(defect) {
+            const dSev = getSeverityBadge(defect.severity);
+            const borderColor = getSeverityColor(defect.severity);
+            const defectType = defect.defect_type || 'unknown';
+            const conf = defect.confidence ? (defect.confidence * 100).toFixed(0) + '%' : '-';
+
+            const card = `
+              <div class="card mb-2" style="border-left: 3px solid ${borderColor};">
+                <div class="card-body p-2">
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span style="font-size: 13px; font-weight: bold;">
+                      #${defect.defect_index} ${defectType}
+                      <span class="text-muted" style="font-weight: normal;">(${conf})</span>
+                    </span>
+                    <span class="badge ${dSev.class}" style="font-size: 11px;">${dSev.text}</span>
+                  </div>
+                  <p style="font-size: 12px; margin-bottom: 4px;"><strong>설명:</strong> ${defect.description}</p>
+                  <p style="font-size: 12px; margin-bottom: 4px;"><strong>원인:</strong> ${defect.possible_cause}</p>
+                  <p style="font-size: 12px; margin-bottom: 0;"><strong>조치:</strong> ${defect.recommendation}</p>
+                </div>
+              </div>
+            `;
+            cardsContainer.append(card);
+          });
+        }
+
+        // 메타 정보
+        if (analysis.analyzed_at) {
+          const dt = new Date(analysis.analyzed_at);
+          $('#vlm-analyzed-at').text(dt.toLocaleString('ko-KR'));
+        }
+        $('#vlm-model').text(analysis.model || 'gemini-2.0-flash');
+      }
+
+      // VLM 에러 표시
+      function showVLMError(message) {
+        $('#vlm-loading').hide();
+        $('#vlm-result').hide();
+        $('#vlm-error').show();
+        $('#vlm-error-message').text(message);
+      }
 
     });
   </script>
