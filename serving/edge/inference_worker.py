@@ -37,6 +37,12 @@ class InferenceWorker(threading.Thread):
         self.session_id = session_id
         self.running = False
 
+        # Hot-Swap Race Condition 방지용 Lock
+        # reload_model()이 self.model을 교체하는 동안 predict()가
+        # 동시에 실행되지 않도록 보호합니다.
+        # Lock 범위는 predict() 호출 구간으로만 한정하여 지연을 최소화합니다.
+        self._model_lock = threading.Lock()
+
         # 모델 로드 (Engine 변환 포함)
         self.model = self._load_model(config.MODEL_PATH)
         print(f"[InferenceWorker] 모델 로드 완료: {config.MODEL_PATH}")
@@ -68,17 +74,24 @@ class InferenceWorker(threading.Thread):
     def reload_model(self):
         """
         런타임 중 새로운 엔진이 준비되었을 때 모델 객체를 안전하게 교체합니다.
+
+        동작 순서:
+          1. Lock 없이 새 모델을 먼저 로드 (시간이 걸리는 작업, 이 동안 추론 계속)
+          2. Lock 획득 후 self.model 교체 (수μs 수준의 짧은 작업)
+          3. 기존 모델 제거 및 Lock 해제
         """
-        print(f"[InferenceWorker] 🔄 모델 리로드 요청 감지. 교체를 시작합니다...")
+        print(f"[InferenceWorker] 🔄 모델 핫스왑 시작...")
         try:
+            # Lock 밖에서 먼저 로드 → 로드 중에도 추론 계속 가능
             new_model = self._load_model(self.model_path)
-            # 파이썬 가비지 컬렉터가 이전 모델을 정리하도록 의존
-            old_model = self.model
-            self.model = new_model
-            del old_model
-            print(f"[InferenceWorker] ✅ 모델 무중단 교체(Hot-Swap) 완료!")
+            # Lock 안에서만 포인터 교체 → predict()와 충돌 방지
+            with self._model_lock:
+                old_model = self.model
+                self.model = new_model
+                del old_model
+            print(f"[InferenceWorker] ✅ 모델 Hot-Swap 완료!")
         except Exception as e:
-            print(f"[InferenceWorker] ❌ 모델 리로드 실패. 기존 모델을 유지합니다: {e}")
+            print(f"[InferenceWorker] ❌ 모델 리로드 실패. 기존 모델 유지: {e}")
 
     def run(self):
         self.running = True
@@ -97,14 +110,18 @@ class InferenceWorker(threading.Thread):
                 # 큐에서 이미지 가져오기
                 camera_id, crop = self.crop_queue.get(timeout=1.0)
                 
-                # 추론 수행
+                # 추론 수행 — Lock 안에서 실행하여 Hot-Swap과의 Race Condition 방지
+                # reload_model()이 새 모델 포인터를 교체하는 순간과 충돌하지 않음
+                # predict() 소요시간(~10-50ms)이 Lock 점유 시간이므로 영향 미미
                 start = time.time()
-                results = self.model.predict(crop, conf=0.25, verbose=False)
+                with self._model_lock:
+                    results = self.model.predict(crop, conf=0.25, verbose=False)
                 inference_time = time.time() - start
                 print(f"[InferenceWorker][{camera_id}] 추론 시간: {inference_time*1000:.1f}ms")
                 
                 # 결과 포매팅
                 payload = self._create_payload(camera_id, crop, results[0])
+
                 
                 # 업로드 큐에 추가
                 try:

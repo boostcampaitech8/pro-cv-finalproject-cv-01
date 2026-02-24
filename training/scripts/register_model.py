@@ -80,10 +80,20 @@ def main():
         
         # 엣지 디바이스가 바라볼 엔드포인트 파일(latest.json) 목록 갱신 및 업로드
         import time
+        # --tags 인자에서 파싱한 태그를 dict로 변환하여 포함
+        # Jetson의 조건 필터(REQUIRED_TAG_KEY/VALUE)가 이 필드를 읽습니다.
+        tags_dict = {}
+        if args.tags:
+            for tag in args.tags.split(","):
+                if "=" in tag:
+                    k, v = tag.split("=", 1)
+                    tags_dict[k.strip()] = v.strip()
+
         latest_info = {
             "version": version.version,
             "s3_key": s3_key,
             "run_id": run_id,
+            "tags": tags_dict,
             "timestamp": int(time.time() * 1000)
         }
         latest_json_path = "/tmp/latest.json"
