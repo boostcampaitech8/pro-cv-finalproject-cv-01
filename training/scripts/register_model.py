@@ -62,6 +62,14 @@ def main():
     print(f"✅ 모델 등록(버전 생성) 성공! 부여된 버전: {version.version}")
     print(f"   소스(출처) Run ID: {run_id}")
     print(f"   소스(출처) 물리 경로: {model_source}")
+    
+    # 등록 직후 Staging으로 전환 (평가 대기 상태)
+    client.transition_model_version_stage(
+        name=args.model_name,
+        version=version.version,
+        stage="Staging"
+    )
+    print(f"📋 모델 v{version.version} → Staging (평가 대기)")
 
     # 3. 엣지 디바이스(Edge Devices) 배포용 S3 버킷에 직접 바이너리 파일 업로드
     s3_bucket = os.environ.get("S3_BUCKET_NAME", "pcb-data-storage")
