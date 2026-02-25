@@ -10,6 +10,13 @@ SCRIPTS_DIR = f"{PROJECT_ROOT}/scripts"
 MODEL_CONFIG = f"{PROJECT_ROOT}/configs/config_qat.yaml"
 PYTHON_BIN = "/workspace/pro-cv-finalproject-cv-01/training/.venv/bin/python"  # 프로젝트 가상환경 (boto3/ultralytics/mlflow 포함)
 
+# AWS 자격증명 — Airflow subprocess에서도 접근 가능하도록 환경변수 설정
+AWS_ENV = {
+    'HOME': '/root',
+    'AWS_SHARED_CREDENTIALS_FILE': '/root/.aws/credentials',
+    'AWS_CONFIG_FILE': '/root/.aws/config',
+}
+
 default_args = {
     'owner': 'podo_team',
     'depends_on_past': False,
@@ -35,7 +42,8 @@ with DAG(
     t1_sync = BashOperator(
         task_id='sync_data_from_s3',
         bash_command=f'{PYTHON_BIN} {SCRIPTS_DIR}/sync_data.py',
-        cwd=PROJECT_ROOT
+        cwd=PROJECT_ROOT,
+        env=AWS_ENV
     )
 
     # 2. FP32 모델 학습 (새로운 데이터 셋 기반 재학습)
@@ -95,7 +103,8 @@ with DAG(
     t5_register = BashOperator(
         task_id='register_model',
         bash_command=register_cmd,
-        cwd=PROJECT_ROOT
+        cwd=PROJECT_ROOT,
+        env=AWS_ENV
     )
 
     t1_sync >> t2_train_fp32 >> t3_train_qat >> t3_export >> t5_register
