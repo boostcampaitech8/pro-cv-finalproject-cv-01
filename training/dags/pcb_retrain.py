@@ -5,10 +5,10 @@ from datetime import timedelta
 import os
 
 # 프로젝트 설정 관리
-PROJECT_ROOT = "/workspace/final_project/training"
+PROJECT_ROOT = "/workspace/pro-cv-finalproject-cv-01/training"
 SCRIPTS_DIR = f"{PROJECT_ROOT}/scripts"
 MODEL_CONFIG = f"{PROJECT_ROOT}/configs/config_qat.yaml"
-PYTHON_BIN = "/workspace/final_project/training/.venv/bin/python"  # 프로젝트 가상환경 (boto3/ultralytics/mlflow 포함)
+PYTHON_BIN = "/workspace/pro-cv-finalproject-cv-01/training/.venv/bin/python"  # 프로젝트 가상환경 (boto3/ultralytics/mlflow 포함)
 
 default_args = {
     'owner': 'podo_team',
