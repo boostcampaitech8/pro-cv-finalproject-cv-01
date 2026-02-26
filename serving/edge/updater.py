@@ -10,6 +10,9 @@ from datetime import datetime
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import config
 
+from dotenv import load_dotenv
+load_dotenv()
+
 # MLflow for Edge (simplified or standard client)
 try:
     import mlflow
@@ -317,9 +320,12 @@ class ModelUpdater:
         print(f"🟢 Updater 시작 (폴링 주기: {self.interval}초)")
         print(f"   조건 필터: {config.REQUIRED_TAG_KEY}={config.REQUIRED_TAG_VALUE!r}")
         print(f"   TRT workspace: {config.TRT_WORKSPACE_MB}MB, avgTiming: {config.TRT_AVG_TIMING_ITERS}")
-        while True:
-            self.check_for_updates()
-            time.sleep(self.interval)
+        try:
+            while True:
+                self.check_for_updates()
+                time.sleep(self.interval)
+        except KeyboardInterrupt:
+            print("🟢 Updater 종료됨")
 
 
 if __name__ == "__main__":

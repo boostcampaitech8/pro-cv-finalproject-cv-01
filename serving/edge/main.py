@@ -6,10 +6,13 @@ RTSP 영상을 수신하고, PCB를 감지/크롭하여 추론 및 업로드 수
 
 import argparse
 import os
+# Jetson: TensorRT는 시스템 패키지이므로 pip 자동 설치 방지
+# os.environ["YOLO_AUTOINSTALL"] = "false"
 import queue
 import signal
 import sys
 import time
+import subprocess
 from datetime import datetime
 
 import cv2
@@ -20,6 +23,8 @@ from preprocessor import PCBPreprocessor
 from rtsp_receiver import RTSPReceiver
 from inference_worker import InferenceWorker
 from upload_worker import UploadWorker
+
+
 
 
 def start_session(session_url: str) -> int:
@@ -188,6 +193,15 @@ def main():
     # 4. 추론 워커 가동
     inference_worker.start()
 
+    # 5. 백그라운드 업데이터 프로세스 실행
+    print("[Main] 백그라운드 모델 업데이터(updater.py) 시작 중...")
+    updater_process = subprocess.Popen(
+        [sys.executable, "-u", "updater.py"],
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+        cwd=os.path.dirname(os.path.abspath(__file__))
+    )
+
     # 전처리기 초기화
     preprocessor = PCBPreprocessor(config.BACKGROUND_PATH)
 
@@ -251,6 +265,16 @@ def main():
         traceback.print_exc()
     finally:
         print("[Main] 리소스 정리 중...")
+        
+        # 업데이터 프로세스 종료
+        if 'updater_process' in locals() and updater_process.poll() is None:
+            print("[Main] 업데이터 프로세스 종료 중...")
+            updater_process.terminate()
+            try:
+                updater_process.wait(timeout=3.0)
+            except subprocess.TimeoutExpired:
+                updater_process.kill()
+                
         for r in receivers:
             r.stop()
         inference_worker.stop()
