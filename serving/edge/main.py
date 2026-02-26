@@ -156,15 +156,21 @@ def main():
     args = parser.parse_args()
 
     # 입력 소스 처리
-    # 카메라 수(num_cameras) 만큼의 URL을 생성합니다. 기본 RTSP 주소에
-    # "_1", "_2" ... 번호를 덧붙이는 방식이며, 파일(확장자 .mp4/.avi/.mkv)인
-    # 경우에는 번호 없이 동일 파일을 반복합니다.
+    # num_cameras > 1일 때 기본 RTSP 주소 뒤에 "_1", "_2" ...을 붙입니다.
+    # 단, 비디오 파일(.mp4/.avi/.mkv)인 경우에는 같은 파일을 복제합니다.
+    # num_cameras == 1이면 사용자가 전달한 입력 문자열을 그대로 사용하여
+    # 특정 주소를 직접 지정할 수 있도록 합니다.
     if args.num_cameras >= 1:
         base_url = args.input
-        if not any(base_url.lower().endswith(ext) for ext in ['.mp4', '.avi', '.mkv']):
-            input_sources = [f"{base_url}_{i+1}" for i in range(args.num_cameras)]
+        if args.num_cameras == 1:
+            # 단일 카메라는 suffix 없이 입력 그대로
+            input_sources = [base_url]
         else:
-            input_sources = [base_url] * args.num_cameras
+            # 다중 카메라일 때만 _1, _2 ... 붙이기
+            if not any(base_url.lower().endswith(ext) for ext in ['.mp4', '.avi', '.mkv']):
+                input_sources = [f"{base_url}_{i+1}" for i in range(args.num_cameras)]
+            else:
+                input_sources = [base_url] * args.num_cameras
     else:
         # num_cameras 가 0 이면 comma-separated list를 그대로 사용
         input_sources = [s.strip() for s in args.input.split(',')]
