@@ -33,16 +33,16 @@ def get_current_model_version() -> tuple:
     current_version.json 파일이 있으면 해당 버전들을, 없으면 기본값 반환.
     """
     version_file = os.path.join(os.path.dirname(config.MODEL_PATH), "current_version.json")
-    mlops_version = "unknown"
-    yolo_version = "unknown"
+    mlops_version = "v0"
+    yolo_version = "v0"
     
     if os.path.exists(version_file):
         try:
             import json
             with open(version_file, 'r') as f:
                 v_info = json.load(f)
-                mlops_version = v_info.get("mlops_version", "unknown")
-                yolo_version = v_info.get("yolo_version", "unknown")
+                mlops_version = v_info.get("mlops_version", "v0")
+                yolo_version = v_info.get("yolo_version", "v0")
         except Exception as e:
             print(f"[Main] 모델 버전 파일 읽기 에러: {e}")
             
