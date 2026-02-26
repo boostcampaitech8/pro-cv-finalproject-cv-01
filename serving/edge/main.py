@@ -27,43 +27,40 @@ from upload_worker import UploadWorker
 
 
 
-def get_current_model_version() -> tuple:
+def get_current_model_version() -> str:
     """
-    현재 모델 버전(mlops_version, yolo_version)을 반환.
-    current_version.json 파일이 있으면 해당 버전들을, 없으면 기본값 반환.
+    현재 모델 버전(model_name)을 반환.
+    current_version.json 파일이 있으면 해당 버전을, 없으면 기본값 반환.
     """
     version_file = os.path.join(os.path.dirname(config.MODEL_PATH), "current_version.json")
-    mlops_version = "v0"
-    yolo_version = "v0"
+    model_name = "yolov11m_v0"
     
     if os.path.exists(version_file):
         try:
             import json
             with open(version_file, 'r') as f:
                 v_info = json.load(f)
-                mlops_version = v_info.get("mlops_version", "v0")
-                yolo_version = v_info.get("yolo_version", "v0")
+                model_name = v_info.get("model_name", "yolov11m_v0")
         except Exception as e:
             print(f"[Main] 모델 버전 파일 읽기 에러: {e}")
             
-    return mlops_version, yolo_version
+    return model_name
 
 
-def start_session(session_url: str, mlops_version: str = None, yolo_version: str = None) -> int:
+def start_session(session_url: str, model_name: str = None) -> int:
     """
     백엔드에 세션 시작을 요청하고 세션 ID를 반환.
     실패 시 None 반환.
     """
     try:
         payload = {
-            "mlops_version": mlops_version,
-            "yolo_version": yolo_version
+            "model_name": model_name
         }
         response = requests.post(session_url, json=payload, timeout=5.0)
         if response.status_code == 201:
             data = response.json()
             session_id = data.get("id")
-            print(f"[Main] 세션 시작: ID={session_id}, MLOps={mlops_version}, YOLO={yolo_version}")
+            print(f"[Main] 세션 시작: ID={session_id}, 모델명={model_name}")
             return session_id
         else:
             print(f"[Main] 세션 시작 실패: HTTP {response.status_code}")
@@ -179,8 +176,8 @@ def main():
     # 세션 시작
     session_id = None
     if not args.no_session:
-        mlops_ver, yolo_ver = get_current_model_version()
-        session_id = start_session(args.session_url, mlops_version=mlops_ver, yolo_version=yolo_ver)
+        model_version = get_current_model_version()
+        session_id = start_session(args.session_url, model_name=model_version)
 
     # Queue 생성
     frame_queue = queue.Queue(maxsize=config.FRAME_QUEUE_SIZE * len(input_sources))

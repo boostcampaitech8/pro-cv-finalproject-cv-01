@@ -258,14 +258,14 @@ class ModelUpdater:
         self.current_version = str(version)
         print(f"🔄 심링크 교체 완료: '{target}' → {abs_engine}")
 
-        # MLOps 버전과 YOLO 버전을 로컬 파일에 저장하여 main.py와 inference_worker가 세션 갱신에 쓰도록 함
-        yolo_version = "unknown"
+        # MLOps 버전과 YOLO 버전을 하나로 합쳐서 로컬 파일에 저장 (예: yolov11m_v2)
+        yolo_version = "yolov11m"
         if meta and "tags" in meta:
-            yolo_version = meta["tags"].get("yolo_version", "unknown")
+            yolo_version = meta["tags"].get("yolo_version", "yolov11m")
             
+        combined_model_name = f"{yolo_version}_{self.current_version}"
         version_info = {
-            "mlops_version": self.current_version,
-            "yolo_version": yolo_version
+            "model_name": combined_model_name
         }
         
         version_file_path = os.path.join(os.path.dirname(config.MODEL_PATH), "current_version.json")

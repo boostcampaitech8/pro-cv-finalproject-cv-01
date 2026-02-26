@@ -356,7 +356,7 @@ async def get_defect_logs(session_id: Optional[int] = None, camera_id: Optional[
 
 # ===== 세션 관리 함수 =====
 
-async def create_session(mlops_version: Optional[str] = None, yolo_version: Optional[str] = None) -> Dict:
+async def create_session(model_name: Optional[str] = None) -> Dict:
     """
     새 세션을 생성하고 ID와 시작 시간을 반환.
     """
@@ -365,13 +365,13 @@ async def create_session(mlops_version: Optional[str] = None, yolo_version: Opti
 
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            "INSERT INTO sessions (started_at, mlops_version, yolo_version) VALUES (?, ?, ?)",
-            (started_at, mlops_version, yolo_version)
+            "INSERT INTO sessions (started_at, model_name) VALUES (?, ?)",
+            (started_at, model_name)
         )
         await db.commit()
         session_id = cursor.lastrowid
 
-    return {"id": session_id, "started_at": started_at, "ended_at": None, "mlops_version": mlops_version, "yolo_version": yolo_version}
+    return {"id": session_id, "started_at": started_at, "ended_at": None, "model_name": model_name}
 
 
 async def end_session(session_id: int) -> Optional[Dict]:
@@ -404,8 +404,7 @@ async def end_session(session_id: int) -> Optional[Dict]:
             "id": session_id,
             "started_at": row["started_at"],
             "ended_at": ended_at,
-            "mlops_version": row["mlops_version"],
-            "yolo_version": row["yolo_version"]
+            "model_name": row["model_name"]
         }
 
 
@@ -808,11 +807,9 @@ async def get_health(session_id: Optional[str]) -> HealthResponse:
             low_ratio = ((dist.mid + dist.low) / total_detections) * 100
 
     # 활성 모델 버전 추출 (session_info가 존재할 경우)
-    active_mlops_version = None
-    active_yolo_version = None
+    active_model = None
     if session_info:
-        active_mlops_version = session_info.get("mlops_version")
-        active_yolo_version = session_info.get("yolo_version")
+        active_model = session_info.get("model_name")
 
     return HealthResponse(
         status=status,
@@ -828,8 +825,7 @@ async def get_health(session_id: Optional[str]) -> HealthResponse:
         defect_confidence_stats=defect_confidence_stats,
         defect_type_stats=defect_type_stats,
         alerts=alerts,
-        active_mlops_version=active_mlops_version,
-        active_yolo_version=active_yolo_version
+        active_model=active_model
     )
 
 

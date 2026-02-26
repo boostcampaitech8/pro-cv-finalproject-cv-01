@@ -98,24 +98,23 @@ class InferenceWorker(threading.Thread):
                 
                 # 2. 새 모델 버전 읽어오기
                 version_file = os.path.join(os.path.dirname(config.MODEL_PATH), "current_version.json")
-                mlops_ver, yolo_ver = "v0", "v0"
+                model_name = "yolov11m_v0"
                 if os.path.exists(version_file):
                     try:
                         import json
                         with open(version_file, "r") as f:
                             v_info = json.load(f)
-                            mlops_ver = v_info.get("mlops_version", "v0")
-                            yolo_ver = v_info.get("yolo_version", "v0")
+                            model_name = v_info.get("model_name", "yolov11m_v0")
                     except Exception as e:
                         pass
                 
                 # 3. 새 세션 시작
                 try:
-                    payload = {"mlops_version": mlops_ver, "yolo_version": yolo_ver}
+                    payload = {"model_name": model_name}
                     response = requests.post(self.session_url, json=payload, timeout=5.0)
                     if response.status_code == 201:
                         self.session_id = response.json().get("id")
-                        print(f"[InferenceWorker] 새 세션 시작 완료: ID={self.session_id} MLOps={mlops_ver} YOLO={yolo_ver}")
+                        print(f"[InferenceWorker] 새 세션 시작 완료: ID={self.session_id} 모델명={model_name}")
                     else:
                         print(f"[InferenceWorker] 새 세션 시작 실패: HTTP {response.status_code}")
                 except Exception as e:

@@ -66,6 +66,45 @@ Coded by www.creative-tim.com
         transform: rotate(360deg);
       }
     }
+
+    /* FN BBox Drawing Mode */
+    .image-container.fn-draw-mode {
+      cursor: crosshair;
+    }
+
+    .fn-bbox-drawn {
+      position: absolute;
+      border: 2px dashed #28a745;
+      background-color: rgba(40, 167, 69, 0.08);
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    .fn-bbox-label {
+      position: absolute;
+      top: -18px;
+      left: -2px;
+      background-color: #28a745;
+      color: white;
+      font-size: 10px;
+      padding: 1px 5px;
+      white-space: nowrap;
+    }
+
+    .fn-draw-hint {
+      position: absolute;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.55);
+      color: #fff;
+      padding: 4px 14px;
+      border-radius: 12px;
+      font-size: 12px;
+      z-index: 110;
+      pointer-events: none;
+      display: none;
+    }
   </style>
 </head>
 
@@ -132,7 +171,14 @@ Coded by www.creative-tim.com
               <li class="nav-item d-flex align-items-center mr-3">
                 <div id="alert-banner-container"></div>
               </li>
-              <li class="nav-item">
+              <li class="nav-item" style="margin-left: 8px;">
+                <div class="form-group mb-0" style="margin-top: 8px;">
+                  <select class="form-control" id="camera-select" style="width: 160px; height: 38px;">
+                    <option value="">All Cameras (전체)</option>
+                  </select>
+                </div>
+              </li>
+              <li class="nav-item" style="margin-left: 8px;">
                 <div class="form-group mb-0" style="margin-top: 8px;">
                   <select class="form-control" id="session-select" style="width: 250px; height: 38px;">
                     <option value="">All Sessions (전체)</option>
@@ -158,6 +204,10 @@ Coded by www.creative-tim.com
                   <img id="main-image" src="" alt="Select a defect log to view image" style="display: none;">
                   <div id="bbox-container"
                     style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
+                  <div id="fn-draw-overlay"
+                    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 105; display: none;">
+                  </div>
+                  <span class="fn-draw-hint" id="fn-draw-hint">🖱 Drag on image to mark missed defect</span>
                 </div>
                 <div class="mt-3 d-flex justify-content-between align-items-center">
                   <div>
@@ -202,7 +252,7 @@ Coded by www.creative-tim.com
         <div class="row" style="margin-top: 30px;">
           <!-- Left Sub-col: Unified Input Form (Wider) -->
           <div class="col-md-8" style="flex: 0 0 60%; max-width: 60%;">
-            <div class="card" style="height: 320px;">
+            <div class="card" style="min-height: 320px;">
               <div class="card-header">
                 <h5 class="card-title" id="feedback-form-title">Feedback</h5>
               </div>
@@ -273,6 +323,8 @@ Coded by www.creative-tim.com
                       <div class="text-right mt-2">
                         <button type="button" class="btn btn-sm btn-secondary" id="cancel-selection-btn"
                           style="display:none;">Cancel Box</button>
+                        <button type="button" class="btn btn-sm btn-outline-danger" id="clear-fn-bbox-btn"
+                          style="display:none;">Clear BBox</button>
                         <button type="button" class="btn btn-sm btn-success" id="add-to-queue-btn">Add to
                           Queue</button>
                       </div>
@@ -415,7 +467,10 @@ Coded by www.creative-tim.com
 
       // Simulation / API Polling Logic
       // 배포 시 (프록시 사용): "/api"
-      const API_BASE_URL = "/api";
+      // Use local backend if running on localhost, otherwise use proxy
+      const API_BASE_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+        ? "http://localhost:8080"
+        : "/api";
 
       // Start polling automatically
       // Start polling automatically
@@ -482,6 +537,24 @@ Coded by www.creative-tim.com
           }
           fetchLogs(); // Refetch immediately
         });
+
+        // Camera Change Event
+        const cameraSelector = document.getElementById("camera-select");
+        if (cameraSelector) {
+          const savedCamera = localStorage.getItem("dashboard_selected_camera");
+          if (savedCamera) {
+            cameraSelector.value = savedCamera;
+          }
+          cameraSelector.addEventListener("change", (e) => {
+            const val = e.target.value;
+            if (val) {
+              localStorage.setItem("dashboard_selected_camera", val);
+            } else {
+              localStorage.removeItem("dashboard_selected_camera");
+            }
+            fetchLogs();
+          });
+        }
       }
 
       async function fetchLogs() {
@@ -493,12 +566,33 @@ Coded by www.creative-tim.com
           if (sessionId) {
             url += `&session_id=${sessionId}`;
           }
+          const cameraSelector = document.getElementById("camera-select");
+          const cameraId = cameraSelector ? cameraSelector.value : "";
+          if (cameraId) {
+            url += `&camera_id=${encodeURIComponent(cameraId)}`;
+          }
 
           const response = await fetch(url);
           if (!response.ok) throw new Error('API Network response was not ok');
 
           const data = await response.json();
           if (!data) return;
+          // Populate camera dropdown with unique camera_ids from fetched data
+          const cameraSelectEl = document.getElementById("camera-select");
+          if (cameraSelectEl) {
+            const existingCameraIds = new Set(
+              Array.from(cameraSelectEl.options).map(o => o.value).filter(v => v !== "")
+            );
+            data.forEach(record => {
+              if (record.camera_id && !existingCameraIds.has(record.camera_id)) {
+                existingCameraIds.add(record.camera_id);
+                const opt = document.createElement("option");
+                opt.value = record.camera_id;
+                opt.textContent = record.camera_id;
+                cameraSelectEl.appendChild(opt);
+              }
+            });
+          }
 
           // Group by image_id
           const groupedMap = new Map();
@@ -512,7 +606,13 @@ Coded by www.creative-tim.com
               // Construct Image URL
               let imageUrl = '../assets/img/logo-small.png';
               if (record.image_path) {
-                imageUrl = `${API_BASE_URL}/${record.image_path.replace(/\\/g, '/')}`;
+                if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                  // Local testing: Look for dummy images in the dashboard assets folder
+                  const filename = record.image_path.split(/[\\/]/).pop();
+                  imageUrl = `../assets/img/defects/${filename}`;
+                } else {
+                  imageUrl = `${API_BASE_URL}/${record.image_path.replace(/\\/g, '/')}`;
+                }
               }
 
               groupedMap.set(record.image_id, {
@@ -611,18 +711,13 @@ Coded by www.creative-tim.com
         // Deprecated, kept empty or removed.
       }
 
-      // Image Load Handler for Smart Resizing
-      mainImage.on('load', function () {
-        $('#image-loader').hide(); // Hide loader when image is ready
-        $(this).show(); // Show image
-        const img = this;
-        const container = $(this).parent();
-        const containerW = container.width(); // Inner width (minus padding)
-        const containerH = container.height(); // Inner height (minus padding)
+      function fitImageToContainer() {
+        const img = mainImage[0];
+        if (!img || !img.naturalWidth) return;
 
-        // Reset styles to calculate natural size correctly if needed, 
-        // but naturalWidth/Height are independent of CSS.
-        // However, we need to set width/height CSS based on aspect ratio comparison.
+        const container = $(img).parent();
+        const containerW = container.width();
+        const containerH = container.height();
 
         const imgAR = img.naturalWidth / img.naturalHeight;
         const containerAR = containerW / containerH;
@@ -635,11 +730,50 @@ Coded by www.creative-tim.com
           $(img).css({ 'width': 'auto', 'height': '100%' });
         }
 
-        // Now draw BBoxes with new dimensions
+        // Redraw all boxes
         updateBBox(currentDefects);
-        // Now draw BBoxes with new dimensions
-        updateBBox(currentDefects);
+        redrawFnBbox();
+      }
+
+      // Image Load Handler for Smart Resizing
+      mainImage.on('load', function () {
+        $('#image-loader').hide(); // Hide loader when image is ready
+        $(this).show(); // Show image
+        fitImageToContainer();
       });
+
+      // Window resize handler
+      $(window).on('resize', function () {
+        fitImageToContainer();
+      });
+
+      // Redraw FN bbox helper
+      function redrawFnBbox() {
+        if (!drawnFnBbox) return;
+        const overlay = $('#fn-draw-overlay');
+        overlay.empty();
+
+        const img = document.getElementById('main-image');
+        if (!img || !img.naturalWidth || !img.width) return;
+
+        const scaleX = img.width / img.naturalWidth;
+        const scaleY = img.height / img.naturalHeight;
+        const offsetLeft = img.offsetLeft;
+        const offsetTop = img.offsetTop;
+
+        const sx1 = (drawnFnBbox.x1 * scaleX) + offsetLeft;
+        const sy1 = (drawnFnBbox.y1 * scaleY) + offsetTop;
+        const sx2 = (drawnFnBbox.x2 * scaleX) + offsetLeft;
+        const sy2 = (drawnFnBbox.y2 * scaleY) + offsetTop;
+
+        const box = $('<div>').addClass('fn-bbox-drawn').css({
+          left: sx1 + 'px', top: sy1 + 'px',
+          width: (sx2 - sx1) + 'px', height: (sy2 - sy1) + 'px'
+        });
+        const selectedClass = $('#unified-correct-class-select').val() || 'Unknown';
+        box.append($('<span>').addClass('fn-bbox-label').text('FN: ' + selectedClass));
+        overlay.append(box);
+      }
 
       let currentLogConfidence = 0; // Global to store average confidence for revert
 
@@ -697,6 +831,9 @@ Coded by www.creative-tim.com
             // If image is already loaded and src matches (re-click), manually trigger load or just call update
             // mainImage.trigger('load'); // Safe option
           }
+
+          // Reset form to FN mode & enable drawing
+          resetUnifiedForm();
         }
       });
 
@@ -860,6 +997,114 @@ Coded by www.creative-tim.com
       });
 
 
+      // --- FN BBox Drawing Logic ---
+      let fnDrawing = false;
+      let fnStartX = 0, fnStartY = 0;
+      let drawnFnBbox = null; // { x1, y1, x2, y2 } in original image coords
+
+      function toggleFnDrawMode(enable) {
+        const container = $('.image-container');
+        const overlay = $('#fn-draw-overlay');
+        const hint = $('#fn-draw-hint');
+        if (enable && selectedLog) {
+          container.addClass('fn-draw-mode');
+          overlay.show();
+          hint.show();
+        } else {
+          container.removeClass('fn-draw-mode');
+          overlay.hide();
+          hint.hide();
+          clearFnDrawing();
+        }
+      }
+
+      function clearFnDrawing() {
+        $('#fn-draw-overlay').empty();
+        drawnFnBbox = null;
+        $('#clear-fn-bbox-btn').hide();
+        $('#fn-draw-hint').show();
+      }
+
+      // Clear BBox button
+      $('#clear-fn-bbox-btn').on('click', function () {
+        clearFnDrawing();
+      });
+
+      // Mouse events on the drawing overlay
+      $(document).on('mousedown', '#fn-draw-overlay', function (e) {
+        if (!$('#fb-fn').is(':checked')) return;
+        e.preventDefault();
+        fnDrawing = true;
+        const rect = this.getBoundingClientRect();
+        fnStartX = e.clientX - rect.left;
+        fnStartY = e.clientY - rect.top;
+        // Clear previous drawing
+        $(this).empty();
+        drawnFnBbox = null;
+        // Create the drawing rect
+        const box = $('<div>').addClass('fn-bbox-drawn').css({
+          left: fnStartX + 'px', top: fnStartY + 'px',
+          width: '0px', height: '0px'
+        });
+        box.append($('<span>').addClass('fn-bbox-label').text('FN'));
+        $(this).append(box);
+      });
+
+      $(document).on('mousemove', '#fn-draw-overlay', function (e) {
+        if (!fnDrawing) return;
+        e.preventDefault();
+        const rect = this.getBoundingClientRect();
+        const curX = e.clientX - rect.left;
+        const curY = e.clientY - rect.top;
+        const box = $(this).find('.fn-bbox-drawn');
+        const x = Math.min(fnStartX, curX);
+        const y = Math.min(fnStartY, curY);
+        const w = Math.abs(curX - fnStartX);
+        const h = Math.abs(curY - fnStartY);
+        box.css({ left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' });
+      });
+
+      $(document).on('mouseup', '#fn-draw-overlay', function (e) {
+        if (!fnDrawing) return;
+        fnDrawing = false;
+        const rect = this.getBoundingClientRect();
+        const curX = e.clientX - rect.left;
+        const curY = e.clientY - rect.top;
+
+        // Screen coords of drawn box
+        const sx1 = Math.min(fnStartX, curX);
+        const sy1 = Math.min(fnStartY, curY);
+        const sx2 = Math.max(fnStartX, curX);
+        const sy2 = Math.max(fnStartY, curY);
+
+        // Ignore tiny accidental clicks
+        if ((sx2 - sx1) < 5 || (sy2 - sy1) < 5) {
+          $(this).empty();
+          return;
+        }
+
+        // Convert screen coords to original image coords
+        const img = document.getElementById('main-image');
+        if (!img || !img.naturalWidth) return;
+        const scaleX = img.naturalWidth / img.width;
+        const scaleY = img.naturalHeight / img.height;
+        const offsetLeft = img.offsetLeft;
+        const offsetTop = img.offsetTop;
+
+        drawnFnBbox = {
+          x1: Math.round((sx1 - offsetLeft) * scaleX),
+          y1: Math.round((sy1 - offsetTop) * scaleY),
+          x2: Math.round((sx2 - offsetLeft) * scaleX),
+          y2: Math.round((sy2 - offsetTop) * scaleY)
+        };
+
+        // Update label with selected class
+        const selectedClass = $('#unified-correct-class-select').val() || 'Unknown';
+        $(this).find('.fn-bbox-label').text('FN: ' + selectedClass);
+        $('#fn-draw-hint').hide();
+        $('#clear-fn-bbox-btn').show();
+      });
+
       // --- Unified Form & Queue Logic ---
 
       function resetUnifiedForm() {
@@ -873,34 +1118,52 @@ Coded by www.creative-tim.com
         $('#fb-fn').prop('checked', true).prop('disabled', false);
         $('#fb-fp').prop('disabled', true);
         $('#fb-wrong').prop('disabled', true);
-        $('#unified-correct-class-group').hide();
+        $('#unified-correct-class-group').show(); // Show for FN too
         $('#unified-comment').attr('placeholder', 'Enter details for missing defect...');
         $('#feedback-form-title').text('Feedback');
+
+        // Re-enable FN draw mode
+        toggleFnDrawMode(true);
       }
 
       function activateUnifiedForm(index, defect) {
         resetUnifiedForm(); // Start clean
 
+        // Disable FN draw mode when box is selected
+        toggleFnDrawMode(false);
+
         $('#unified-feedback-form').data('bboxIndex', index);
-        $('#target-box-id').text(index); // Or use defect type info?
+        $('#target-box-id').text(index);
         $('#form-context-info').show();
         $('#cancel-selection-btn').show();
 
         // Set Box Mode
-        $('#fb-fn').prop('disabled', true); // Cannot be FN if box is selected
-        $('#fb-fp').prop('disabled', false).prop('checked', true); // Default to FP?
+        $('#fb-fn').prop('disabled', true);
+        $('#fb-fp').prop('disabled', false).prop('checked', true);
         $('#fb-wrong').prop('disabled', false);
+        $('#unified-correct-class-group').hide(); // FP doesn't need class dropdown
 
         $('#unified-comment').attr('placeholder', `Feedback for ${defect.type}...`);
-        $('#feedback-form-title').text('Box Feedback');
+        $('#feedback-form-title').text('Feedback');
       }
 
       // Handle Feedback Type Change (Unified)
       $('input[name="feedbackTypeUnified"]').on('change', function () {
-        if ($(this).val() === 'tp_wrong_class') {
+        const val = $(this).val();
+        if (val === 'tp_wrong_class' || val === 'false_negative') {
           $('#unified-correct-class-group').show();
         } else {
           $('#unified-correct-class-group').hide();
+        }
+        // Toggle FN drawing mode
+        toggleFnDrawMode(val === 'false_negative');
+      });
+
+      // Update FN label when class changes
+      $('#unified-correct-class-select').on('change', function () {
+        if ($('#fb-fn').is(':checked') && drawnFnBbox) {
+          const selectedClass = $(this).val() || 'Unknown';
+          $('.fn-bbox-label').text('FN: ' + selectedClass);
         }
       });
 
@@ -922,8 +1185,14 @@ Coded by www.creative-tim.com
           bboxIndex: bboxIndex // undefined if global
         };
 
-        if (type === 'tp_wrong_class') {
+        if (type === 'tp_wrong_class' || type === 'false_negative') {
           item.correctLabel = correctLabel;
+        }
+
+        // Attach drawn FN bbox if available
+        if (type === 'false_negative' && drawnFnBbox) {
+          item.target_bbox = [drawnFnBbox.x1, drawnFnBbox.y1, drawnFnBbox.x2, drawnFnBbox.y2];
+          clearFnDrawing();
         }
 
         // Store target_bbox immediately to ensure validity against current defects
@@ -981,9 +1250,10 @@ Coded by www.creative-tim.com
           let typeText = item.type;
 
           if (item.type === 'false_negative') {
-            label = 'Global (FN)';
+            const hasBbox = item.target_bbox && item.target_bbox.length === 4;
+            label = hasBbox ? `BBox [${item.target_bbox.join(',')}]` : 'Global (FN)';
             badgeClass = 'badge-warning';
-            typeText = 'False Negative';
+            typeText = item.correctLabel ? `FN: ${item.correctLabel}` : 'False Negative';
           } else if (item.type === 'false_positive') {
             label = `Box #${item.bboxIndex}`;
             badgeClass = 'badge-danger';

@@ -1,6 +1,7 @@
-// API Configuration
-// Use proxy path for production, or direct URL for local testing
-const API_BASE_URL = "/api";
+// Use local backend if running on localhost, otherwise use proxy
+const API_BASE_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? "http://localhost:8080"
+    : "/api";
 
 const ApiClient = {
     // 세션 API
@@ -15,13 +16,14 @@ const ApiClient = {
         }
     },
 
-    // 통계 API (session_id 지원)
-    getStats: async (sessionId = null) => {
+    // 통계 API (session_id, camera_id 지원)
+    getStats: async (sessionId = null, cameraId = null) => {
         try {
             let url = `${API_BASE_URL}/stats`;
-            if (sessionId) {
-                url += `?session_id=${sessionId}`;
-            }
+            const params = [];
+            if (sessionId) params.push(`session_id=${sessionId}`);
+            if (cameraId) params.push(`camera_id=${encodeURIComponent(cameraId)}`);
+            if (params.length) url += '?' + params.join('&');
             const response = await fetch(url);
             if (!response.ok) throw new Error("Network response was not ok");
             return await response.json();
@@ -31,13 +33,14 @@ const ApiClient = {
         }
     },
 
-    // 결함 집계 API (session_id 지원)
-    getDefects: async (sessionId = null) => {
+    // 결함 집계 API (session_id, camera_id 지원)
+    getDefects: async (sessionId = null, cameraId = null) => {
         try {
             let url = `${API_BASE_URL}/defects`;
-            if (sessionId) {
-                url += `?session_id=${sessionId}`;
-            }
+            const params = [];
+            if (sessionId) params.push(`session_id=${sessionId}`);
+            if (cameraId) params.push(`camera_id=${encodeURIComponent(cameraId)}`);
+            if (params.length) url += '?' + params.join('&');
             const response = await fetch(url);
             if (!response.ok) throw new Error("Network response was not ok");
             return await response.json();
@@ -47,11 +50,12 @@ const ApiClient = {
         }
     },
 
-    // 최근 로그 API (session_id 지원)
-    getLatest: async (limit = 10, sessionId = null) => {
+    // 최근 로그 API (session_id, camera_id 지원)
+    getLatest: async (limit = 10, sessionId = null, cameraId = null) => {
         try {
             let url = `${API_BASE_URL}/latest?limit=${limit}`;
             if (sessionId) url += `&session_id=${sessionId}`;
+            if (cameraId) url += `&camera_id=${encodeURIComponent(cameraId)}`;
             const response = await fetch(url);
             if (!response.ok) throw new Error("Network response was not ok");
             return await response.json();
@@ -89,6 +93,7 @@ const ApiClient = {
 const DashboardUpdater = {
     charts: {},
     selectedSessionId: null,  // 선택된 세션 ID (null = 전체)
+    selectedCameraId: null,   // 선택된 카메라 ID (null = 전체)
     dismissedAlertSession: undefined, // 알림을 끈 세션 ID 저장
 
     // Defect type별 고정 색상 (범례와 일치)
@@ -150,6 +155,33 @@ const DashboardUpdater = {
 
         // 초기 세션 목록 로드
         this.loadSessions();
+
+        // 카메라 선택기 초기화
+        this.initCameraSelector();
+    },
+
+    // 카메라 선택기 초기화
+    initCameraSelector: function () {
+        const selector = document.getElementById("camera-select");
+        if (!selector) return;
+
+        // 저장된 카메라 복원
+        const savedCamera = localStorage.getItem("dashboard_selected_camera");
+        if (savedCamera) {
+            this.selectedCameraId = savedCamera;
+        }
+
+        selector.addEventListener("change", (e) => {
+            const value = e.target.value;
+            this.selectedCameraId = value || null;
+            if (this.selectedCameraId) {
+                localStorage.setItem("dashboard_selected_camera", this.selectedCameraId);
+            } else {
+                localStorage.removeItem("dashboard_selected_camera");
+            }
+            console.log("Camera selected:", this.selectedCameraId);
+            this.updateData({ forceChartUpdate: true });
+        });
     },
 
     // 세션 목록 로드
@@ -382,10 +414,11 @@ const DashboardUpdater = {
 
     updateData: async function ({ forceChartUpdate = false } = {}) {
         const sessionId = this.selectedSessionId;
+        const cameraId = this.selectedCameraId;
 
         // 대시보드 메인 카드 업데이트
         if (document.getElementById("total-count")) {
-            const stats = await ApiClient.getStats(sessionId);
+            const stats = await ApiClient.getStats(sessionId, cameraId);
             if (stats) {
                 document.getElementById("total-count").innerText = stats.total_inspections || 0;
                 document.getElementById("normal-count").innerText = stats.normal_count || 0;
@@ -399,16 +432,40 @@ const DashboardUpdater = {
             this.updateHealthMetrics(sessionId);
         }
 
-        const defects = await ApiClient.getDefects(sessionId);
+        const defects = await ApiClient.getDefects(sessionId, cameraId);
         if (defects && this.charts.types) {
             this.updateTypesChart(defects);
         }
 
         // Always fetch latest logs (세션별 필터링)
-        const latest = await ApiClient.getLatest(50, sessionId);
-        if (latest && this.charts.confidence) {
-            const defectsOnly = latest.filter(item => item.result === 'defect');
-            this.updateConfidenceChart(defectsOnly.slice(0, 10));
+        const latest = await ApiClient.getLatest(50, sessionId, cameraId);
+        if (latest) {
+            // 카메라 드롭박스 자동 채우기
+            const cameraSelectEl = document.getElementById("camera-select");
+            if (cameraSelectEl) {
+                const existingIds = new Set(
+                    Array.from(cameraSelectEl.options).map(o => o.value).filter(v => v !== "")
+                );
+                latest.forEach(record => {
+                    if (record.camera_id && !existingIds.has(record.camera_id)) {
+                        existingIds.add(record.camera_id);
+                        const opt = document.createElement("option");
+                        opt.value = record.camera_id;
+                        opt.textContent = record.camera_id;
+                        cameraSelectEl.appendChild(opt);
+                    }
+                });
+                // 저장된 카메라 선택 복원
+                if (this.selectedCameraId && cameraSelectEl.value !== this.selectedCameraId) {
+                    const exists = Array.from(cameraSelectEl.options).some(o => o.value === this.selectedCameraId);
+                    if (exists) cameraSelectEl.value = this.selectedCameraId;
+                }
+            }
+
+            if (this.charts.confidence) {
+                const defectsOnly = latest.filter(item => item.result === 'defect');
+                this.updateConfidenceChart(defectsOnly.slice(0, 10));
+            }
         }
     },
 
