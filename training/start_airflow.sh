@@ -23,5 +23,10 @@ echo "📡 Execution API: $AIRFLOW__CORE__EXECUTION_API_SERVER_URL"
 # Enable the project's venv
 source /workspace/pro-cv-finalproject-cv-01/training/.venv/bin/activate
 
-# Launch
-airflow standalone
+# Launch in background
+mkdir -p "$AIRFLOW_HOME/logs"
+nohup airflow standalone > "$AIRFLOW_HOME/logs/airflow_nohup.log" 2>&1 &
+
+echo "✅ Airflow is running in the background."
+echo "📝 Logs are being written to: $AIRFLOW_HOME/logs/airflow_nohup.log"
+echo "💡 To check logs, use: tail -f $AIRFLOW_HOME/logs/airflow_nohup.log"

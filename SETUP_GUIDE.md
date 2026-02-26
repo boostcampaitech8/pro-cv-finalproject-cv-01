@@ -13,8 +13,8 @@
 6. [MLflow 서버 실행](#6-mlflow-서버-실행)
 7. [Airflow 실행](#7-airflow-실행)
 8. [SSH 서버 설정 (팀원 초대)](#8-ssh-서버-설정-팀원-초대)
-9. [팀원 계정 생성 & 권한 설정](#9-팀원-계정-생성--권한-설정)
-10. [로컬 PC에서 웹 UI 접속 (SSH 터널링)](#10-로컬-pc에서-웹-ui-접속-ssh-터널링)
+9. [팀원 root SSH 접속 설정 (공개키 등록)](#9-팀원-root-ssh-접속-설정-공개키-등록)
+10. [웹 UI 접속 방법 (RunPod Public URL)](#10-웹-ui-접속-방법-runpod-public-url)
 11. [전체 검증](#11-전체-검증)
 12. [트러블슈팅 모음](#12-트러블슈팅-모음)
 
@@ -128,8 +128,8 @@ aws configure
 
 | 프롬프트 | 입력값 |
 |---------|--------|
-| AWS Access Key ID | (팀 노션 참고) |
-| AWS Secret Access Key | (팀 노션 참고) |
+| AWS Access Key ID | jetson .env 확인 |
+| AWS Secret Access Key | jetson .env 확인 |
 | Default region name | `ap-southeast-2` |
 | Default output format | `json` |
 
@@ -191,6 +191,7 @@ cd /workspace/pro-cv-finalproject-cv-01/training
 bash start_airflow.sh
 ```
 
+> 💡 이제 `start_airflow.sh`는 자동으로 **백그라운드(`nohup`)**에서 실행됩니다. 터미널을 닫아도 프로세스가 유지됩니다.
 > `sh start_airflow.sh`로 실행하면 `source: not found` 에러 발생. 반드시 **`bash`**로 실행!
 
 ### 7-2. 수동 실행 (start_airflow.sh 없이)
@@ -304,147 +305,71 @@ service ssh restart
 
 ---
 
-## 9. 팀원 계정 생성 & 권한 설정
+## 9. 팀원 root SSH 접속 설정 (공개키 등록)
 
-### 9-1. 계정 생성
+팀원들이 별도의 계정 생성 없이, 본인의 PC에서 서버의 **root** 계정으로 바로 접속할 수 있게 설정합니다.
 
-```bash
-adduser 팀원이름       # 비밀번호 설정 프롬프트가 뜸
-usermod -aG sudo 팀원이름
-```
+### 9-1. root 공개키 등록 (가장 중요)
 
-### 9-2. sudo 설치 (없을 수 있음)
+팀원들에게 공개키(`ssh-ed25519 AAAA...` 또는 `ssh-rsa AAAA...`)를 받아서 아래 파일에 추가합니다.
 
-```bash
-apt-get install -y sudo
-```
-
-### 9-3. 비밀번호 없이 sudo 허용
-
-```bash
-mkdir -p /etc/sudoers.d
-echo "팀원이름 ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/팀원이름
-chmod 440 /etc/sudoers.d/팀원이름
-```
-
-### 9-4. SSH 공개키 등록
-
-팀원에게 공개키(`ssh-ed25519 AAAA...` 또는 `ssh-rsa AAAA...`)를 받아서:
+- **수정할 파일**: `/root/.ssh/authorized_keys`
 
 ```bash
 # 디렉토리 생성 및 권한 설정
-mkdir -p /home/팀원이름/.ssh
-chmod 700 /home/팀원이름/.ssh
+mkdir -p /root/.ssh
+chmod 700 /root/.ssh
 
-# 공개키 추가 (여러 명이면 한 줄씩 추가)
-cat > /home/팀원이름/.ssh/authorized_keys << 'EOF'
+# 공개키 추가 (기존 키가 있다면 뒤에 추가됨)
+cat >> /root/.ssh/authorized_keys << 'EOF'
 ssh-ed25519 AAAA... user1@pc
 ssh-ed25519 AAAA... user2@pc
 EOF
 
-# ⚠️ 핵심: 소유자를 반드시 해당 유저로 변경!
-chmod 600 /home/팀원이름/.ssh/authorized_keys
-chown -R 팀원이름:팀원이름 /home/팀원이름/.ssh
+# 권한 설정 (본인만 읽을 수 있어야 함)
+chmod 600 /root/.ssh/authorized_keys
 ```
 
-> **`.ssh` 폴더와 `authorized_keys`의 소유자가 해당 유저가 아니면 SSH 접속이 거부됩니다!**  
-> root로 파일을 만들었으면 반드시 `chown -R 팀원이름:팀원이름 /home/팀원이름/.ssh` 실행
+### 9-2. root 로그인 허용 설정
 
-키를 추가로 등록할 때는 `>>`(append)를 사용:
 ```bash
-echo "ssh-ed25519 AAAA... newuser@pc" >> /home/팀원이름/.ssh/authorized_keys
+# root 로그인 설정을 yes로 변경
+sed -i 's/^#\?PermitRootLogin .*/PermitRootLogin yes/' /etc/ssh/sshd_config
+
+# 설정 적용을 위해 SSH 재시작
+service ssh restart
 ```
 
-### 9-5. 파일 시스템 권한 설정 (핵심!)
+### 9-3. 접속 확인 (팀원 PC에서)
 
-팀원이 Python, AWS, 프로젝트 파일에 접근하려면 아래 권한이 모두 필요합니다:
-
+팀원은 로그라이크(RunPod)에서 제공하는 SSH 명령어를 그대로 사용하되, 별도의 비밀번호 없이 바로 접속됩니다.
 ```bash
-# ① /root 디렉토리 열기 (uv, python, aws 경로가 여기 있음)
-chmod 755 /root
-chmod -R a+rX /root/.local/     # uv + Python 바이너리
-chmod -R a+rX /root/.aws/       # AWS 자격증명
-
-# ② /workspace 접근 권한
-chmod -R 775 /workspace/
-
-# ③ MLflow/Airflow 쓰기 권한
-chmod -R a+rwX /workspace/pro-cv-finalproject-cv-01/training/mlruns/ 2>/dev/null
-chmod -R a+rwX /workspace/pro-cv-finalproject-cv-01/training/logs/ 2>/dev/null
-chmod a+rw /workspace/pro-cv-finalproject-cv-01/training/airflow.db 2>/dev/null
-
-# ④ 팀원을 root 그룹에 추가
-usermod -aG root 팀원이름
-
-# ⑤ 팀원 홈에 AWS 자격증명 심링크 (팀원도 S3 접근 가능)
-ln -sf /root/.aws /home/팀원이름/.aws
-chown -h 팀원이름:팀원이름 /home/팀원이름/.aws
-```
-
-### 9-6. 검증
-
-```bash
-# 팀원 Python 접근 테스트
-su -s /bin/bash 팀원이름 -c "/workspace/pro-cv-finalproject-cv-01/training/.venv/bin/python3 --version"
-# → Python 3.10.19
-
-# 팀원 AWS 접근 테스트
-su -s /bin/bash 팀원이름 -c "aws sts get-caller-identity --region ap-southeast-2"
-# → Account 정보 출력되면 성공
+ssh -p <포트> root@<IP>
 ```
 
 ---
 
-## 10. 로컬 PC에서 웹 UI 접속 (SSH 터널링)
+---
 
-### 왜 필요한가?
+## 10. 웹 UI 접속 방법 (RunPod Public URL)
 
-RunPod은 기본적으로 **SSH(22) 포트만** 외부에 노출합니다.
-MLflow(5000), Airflow(8082) 포트는 컨테이너 내부에서만 접근 가능합니다.
+### 방법 1: RunPod에서 포트 직접 열기 (권장)
 
-```
-인터넷 ──→ RunPod 방화벽 ──→ 컨테이너
-               ├─ 22번 (SSH)     → ✅ 열림 (외부포트: 14647 등)
-               ├─ 5000 (MLflow)  → ❌ 막힘
-               └─ 8082 (Airflow) → ❌ 막힘
-```
+RunPod Pod 생성 시 **Expose HTTP Ports** 항목에 `5000, 8082`를 추가했다면, 별도의 터널링 없이 바로 접속 가능합니다.
 
-### 방법 1: SSH 터널링 (Pod 재시작 없이 바로 가능)
+1. RunPod 대시보드에서 해당 Pod의 **Connect** 버튼 클릭
+2. **HTTP Forwarding** 또는 **Exposed Ports** 탭 확인
+3. 생성된 URL 클릭:
+   - `https://xxx-5000.proxy.runpod.net` → MLflow
+   - `https://xxx-8082.proxy.runpod.net` → Airflow
 
-**로컬 PC의 터미널(CMD/PowerShell/터미널)**에서 실행합니다. (서버 아님!)
+### 방법 2: SSH 터널링 (포트가 안 열려있을 때만 사용)
+
+포트 설정을 깜빡했다면 로컬 터미널에서 아래 명령을 실행한 뒤 브라우저에서 `localhost:18082` 등으로 접속합니다.
 
 ```bash
-ssh -p <외부포트> -L 18082:localhost:8082 -L 15000:localhost:5000 root@<서버IP>
+ssh -p <포트> -L 18082:localhost:8082 -L 15000:localhost:5000 root@<IP>
 ```
-
-이 명령어가 실행되면 로컬 브라우저에서:
-
-| 서비스 | 브라우저 주소 |
-|--------|-------------|
-| **Airflow** | `http://localhost:18082` |
-| **MLflow** | `http://localhost:15000` |
-
-> ⚠️ SSH 연결을 유지한 상태에서만 작동합니다. 터미널 닫으면 터널도 끊김!
-
-### Windows에서 `bind: Permission denied` 에러 시
-
-로컬 포트 번호를 더 높게 변경하세요:
-```bash
-ssh -p <외부포트> -L 28082:localhost:8082 -L 25000:localhost:5000 root@<서버IP>
-```
-→ 브라우저: `http://localhost:28082`, `http://localhost:25000`
-
-또는 **CMD를 관리자 권한으로 실행**해도 됩니다.
-
-### 방법 2: RunPod에서 포트 직접 열기 (Pod 재생성 필요)
-
-Pod 생성 시 **Expose HTTP Ports** 항목에 `5000, 8082`를 추가하면
-RunPod이 `https://xxx-5000.proxy.runpod.net` 같은 공개 URL을 자동으로 만들어줍니다.
-
-→ SSH 터널링 없이 브라우저에서 바로 접속 가능
-
-> ⚠️ 이미 실행 중인 Pod에는 적용할 수 없음. Pod을 중지 후 다시 생성해야 함.
-> `/workspace/` 볼륨 데이터는 유지됨.
 
 ---
 
@@ -595,37 +520,22 @@ nohup .venv/bin/mlflow server --host 0.0.0.0 --port 5000 \
 # 5단계: Airflow 시작 (포트 8082!)
 # ==============================================================
 bash start_airflow.sh
-# → 새 터미널 열어서 이후 작업 진행
+# → 이제 백그라운드에서 실행되므로, 같은 터미널에서 바로 다음 작업 가능
 
 # ==============================================================
-# 6단계: SSH + 팀원 설정
+# 6단계: SSH + 팀원 root 접속 설정
 # ==============================================================
 mkdir -p /run/sshd && service ssh start
 sed -i 's/^#\?PermitRootLogin .*/PermitRootLogin yes/' /etc/ssh/sshd_config
-sed -i 's/^#\?PubkeyAuthentication .*/PubkeyAuthentication yes/' /etc/ssh/sshd_config
 service ssh restart
 
-# 팀원 계정 생성
-adduser 팀원이름
-echo "팀원이름 ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/팀원이름
-chmod 440 /etc/sudoers.d/팀원이름
-
-# 팀원 공개키 등록
-mkdir -p /home/팀원이름/.ssh && chmod 700 /home/팀원이름/.ssh
-cat > /home/팀원이름/.ssh/authorized_keys << 'EOF'
-팀원공개키를여기에
+# 팀원 공개키 등록 (수정할 파일: /root/.ssh/authorized_keys)
+mkdir -p /root/.ssh && chmod 700 /root/.ssh
+cat >> /root/.ssh/authorized_keys << 'EOF'
+팀원_공개키_1
+팀원_공개키_2
 EOF
-chmod 600 /home/팀원이름/.ssh/authorized_keys
-chown -R 팀원이름:팀원이름 /home/팀원이름/.ssh
-
-# 팀원 권한 설정
-chmod 755 /root
-chmod -R a+rX /root/.local/ /root/.aws/
-chmod -R 775 /workspace/
-chmod -R a+rwX $(pwd)/mlruns/ $(pwd)/logs/ 2>/dev/null
-ln -sf /root/.aws /home/팀원이름/.aws
-chown -h 팀원이름:팀원이름 /home/팀원이름/.aws
-usermod -aG root 팀원이름
+chmod 600 /root/.ssh/authorized_keys
 
 # ==============================================================
 # 7단계: 검증
