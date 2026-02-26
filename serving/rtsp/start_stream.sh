@@ -6,8 +6,8 @@
 # (1) 카메라 수와 영상 소스는 필요에 따라 조절하세요.
 # 비디오 파일 목록을 배열로 정의하면 각 채널마다 다른 영상을 송출할 수 있습니다.
 VIDEO_SOURCES=(
-    "/home/ubuntu/rtsp/health_optimized.mp4"
-    "/home/ubuntu/rtsp/health_optimized.mp4"
+    "/home/ubuntu/rtsp/health_optimized.mp4",
+    "/home/ubuntu/rtsp/health_optimized.mp4",
     "/home/ubuntu/rtsp/health_optimized.mp4"
 )
 # 배열 길이를 카메라 수로 사용합니다.
