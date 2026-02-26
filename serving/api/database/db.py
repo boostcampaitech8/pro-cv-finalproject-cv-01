@@ -34,9 +34,16 @@ async def init_db():
             CREATE TABLE IF NOT EXISTS sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 started_at TEXT NOT NULL,
-                ended_at TEXT
+                ended_at TEXT,
+                model_name TEXT
             )
         """)
+
+        # 기존 sessions 테이블에 model_name 컬럼이 없으면 추가 (마이그레이션)
+        try:
+            await db.execute("SELECT model_name FROM sessions LIMIT 1")
+        except aiosqlite.OperationalError:
+            await db.execute("ALTER TABLE sessions ADD COLUMN model_name TEXT")
 
         # 검사 로그 테이블 생성
         await db.execute("""
@@ -319,7 +326,7 @@ async def get_defect_logs(session_id: Optional[int] = None) -> List[Dict]:
 
 # ===== 세션 관리 함수 =====
 
-async def create_session() -> Dict:
+async def create_session(model_name: Optional[str] = None) -> Dict:
     """
     새 세션을 생성하고 ID와 시작 시간을 반환.
     """
@@ -328,13 +335,13 @@ async def create_session() -> Dict:
 
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            "INSERT INTO sessions (started_at) VALUES (?)",
-            (started_at,)
+            "INSERT INTO sessions (started_at, model_name) VALUES (?, ?)",
+            (started_at, model_name)
         )
         await db.commit()
         session_id = cursor.lastrowid
 
-    return {"id": session_id, "started_at": started_at, "ended_at": None}
+    return {"id": session_id, "started_at": started_at, "ended_at": None, "model_name": model_name}
 
 
 async def end_session(session_id: int) -> Optional[Dict]:
@@ -366,7 +373,8 @@ async def end_session(session_id: int) -> Optional[Dict]:
         return {
             "id": session_id,
             "started_at": row["started_at"],
-            "ended_at": ended_at
+            "ended_at": ended_at,
+            "model_name": row["model_name"]
         }
 
 

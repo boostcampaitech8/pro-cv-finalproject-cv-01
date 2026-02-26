@@ -4,7 +4,7 @@
 세션 생성, 종료, 목록 조회 기능 제공
 """
 from fastapi import APIRouter, HTTPException, status
-from schemas.schemas import SessionResponse, SessionCreateResponse, SessionListResponse
+from schemas.schemas import SessionResponse, SessionCreateRequest, SessionCreateResponse, SessionListResponse
 from database import db
 
 router = APIRouter(
@@ -14,15 +14,17 @@ router = APIRouter(
 
 
 @router.post("/", response_model=SessionCreateResponse, status_code=status.HTTP_201_CREATED)
-async def create_session():
+async def create_session(request: SessionCreateRequest = SessionCreateRequest()):
     """
     새 세션을 시작합니다.
     엣지에서 추론 시작 시 호출.
+    모델 교체 시 새 세션을 생성하여 모델별 추적 가능.
     """
-    session = await db.create_session()
+    session = await db.create_session(model_name=request.model_name)
     return SessionCreateResponse(
         id=session["id"],
-        started_at=session["started_at"]
+        started_at=session["started_at"],
+        model_name=session["model_name"]
     )
 
 

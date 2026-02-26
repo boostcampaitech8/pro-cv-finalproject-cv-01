@@ -84,6 +84,13 @@ class StatsResponse(BaseModel):
 
 # ===== 세션 관련 스키마 =====
 
+class SessionCreateRequest(BaseModel):
+    """
+    세션 생성 요청
+    """
+    model_name: Optional[str] = Field(None, description="현재 사용 모델 파일명 (예: qat_yolov8s_v2.pt)")
+
+
 class SessionResponse(BaseModel):
     """
     세션 정보 응답
@@ -91,6 +98,7 @@ class SessionResponse(BaseModel):
     id: int = Field(..., description="세션 ID")
     started_at: str = Field(..., description="세션 시작 시간 (ISO 8601)")
     ended_at: Optional[str] = Field(None, description="세션 종료 시간 (ISO 8601)")
+    model_name: Optional[str] = Field(None, description="사용 모델명")
 
 
 class SessionCreateResponse(BaseModel):
@@ -99,6 +107,7 @@ class SessionCreateResponse(BaseModel):
     """
     id: int = Field(..., description="생성된 세션 ID")
     started_at: str = Field(..., description="세션 시작 시간 (ISO 8601)")
+    model_name: Optional[str] = Field(None, description="사용 모델명")
 
 
 class SessionListResponse(BaseModel):
