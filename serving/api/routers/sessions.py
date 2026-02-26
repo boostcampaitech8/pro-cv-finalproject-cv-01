@@ -20,11 +20,15 @@ async def create_session(request: SessionCreateRequest = SessionCreateRequest())
     엣지에서 추론 시작 시 호출.
     모델 교체 시 새 세션을 생성하여 모델별 추적 가능.
     """
-    session = await db.create_session(model_name=request.model_name)
+    session = await db.create_session(
+        mlops_version=request.mlops_version,
+        yolo_version=request.yolo_version
+    )
     return SessionCreateResponse(
         id=session["id"],
         started_at=session["started_at"],
-        model_name=session["model_name"]
+        mlops_version=session["mlops_version"],
+        yolo_version=session["yolo_version"]
     )
 
 

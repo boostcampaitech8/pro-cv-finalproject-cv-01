@@ -90,7 +90,8 @@ class SessionCreateRequest(BaseModel):
     """
     세션 생성 요청
     """
-    model_name: Optional[str] = Field(None, description="현재 사용 모델 파일명 (예: qat_yolov8s_v2.pt)")
+    mlops_version: Optional[str] = Field(None, description="현재 사용 중인 MLOps 모델 버전")
+    yolo_version: Optional[str] = Field(None, description="현재 사용 중인 YOLO 베이스 모델 버전")
 
 
 class SessionResponse(BaseModel):
@@ -100,7 +101,8 @@ class SessionResponse(BaseModel):
     id: int = Field(..., description="세션 ID")
     started_at: str = Field(..., description="세션 시작 시간 (ISO 8601)")
     ended_at: Optional[str] = Field(None, description="세션 종료 시간 (ISO 8601)")
-    model_name: Optional[str] = Field(None, description="사용 모델명")
+    mlops_version: Optional[str] = Field(None, description="사용된 MLOps 모델 버전")
+    yolo_version: Optional[str] = Field(None, description="사용된 YOLO 베이스 모델 버전")
 
 
 class SessionCreateResponse(BaseModel):
@@ -109,7 +111,8 @@ class SessionCreateResponse(BaseModel):
     """
     id: int = Field(..., description="생성된 세션 ID")
     started_at: str = Field(..., description="세션 시작 시간 (ISO 8601)")
-    model_name: Optional[str] = Field(None, description="사용 모델명")
+    mlops_version: Optional[str] = Field(None, description="사용된 MLOps 모델 버전")
+    yolo_version: Optional[str] = Field(None, description="사용된 YOLO 베이스 모델 버전")
 
 
 class SessionListResponse(BaseModel):
@@ -188,6 +191,8 @@ class HealthResponse(BaseModel):
     defect_confidence_stats: Optional[DefectConfidenceStats] = Field(None, description="결함 신뢰도 통계")
     defect_type_stats: List[DefectTypeStat] = Field(default_factory=list, description="결함 타입별 통계")
     alerts: List[AlertInfo] = Field(default_factory=list, description="알림 목록")
+    active_mlops_version: Optional[str] = Field(None, description="현재 활성화된 MLOps 모델 버전")
+    active_yolo_version: Optional[str] = Field(None, description="현재 활성화된 YOLO 베이스 모델 버전")
 
 
 class AlertsResponse(BaseModel):
@@ -200,6 +205,8 @@ class AlertsResponse(BaseModel):
     session_info: SessionInfo = Field(..., description="세션 정보")
     alerts: List[AlertInfo] = Field(default_factory=list, description="알림 목록")
     summary: dict = Field(..., description="간단한 요약 (defect_rate, avg_confidence)")
+    active_mlops_version: Optional[str] = Field(None, description="현재 활성화된 MLOps 모델 버전")
+    active_yolo_version: Optional[str] = Field(None, description="현재 활성화된 YOLO 베이스 모델 버전")
 
 
 # ===== 피드백 관련 스키마 (Bulk 전용) =====

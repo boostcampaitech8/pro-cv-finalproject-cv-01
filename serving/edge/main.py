@@ -27,33 +27,43 @@ from upload_worker import UploadWorker
 
 
 
-def get_current_model_version() -> str:
+def get_current_model_version() -> tuple:
     """
-    현재 모델 버전을 반환.
-    .reload_model 파일에 버전이 기록되어 있으면 해당 버전, 없으면 "v0".
+    현재 모델 버전(mlops_version, yolo_version)을 반환.
+    current_version.json 파일이 있으면 해당 버전들을, 없으면 기본값 반환.
     """
-    if os.path.exists(config.RELOAD_FLAG_PATH):
+    version_file = os.path.join(os.path.dirname(config.MODEL_PATH), "current_version.json")
+    mlops_version = "v0"
+    yolo_version = "v0"
+    
+    if os.path.exists(version_file):
         try:
-            with open(config.RELOAD_FLAG_PATH, 'r') as f:
-                version = f.read().strip()
-                return f"v{version}" if version else "v0"
-        except Exception:
-            pass
-    return "v0"
+            import json
+            with open(version_file, 'r') as f:
+                v_info = json.load(f)
+                mlops_version = v_info.get("mlops_version", "v0")
+                yolo_version = v_info.get("yolo_version", "v0")
+        except Exception as e:
+            print(f"[Main] 모델 버전 파일 읽기 에러: {e}")
+            
+    return mlops_version, yolo_version
 
 
-def start_session(session_url: str, model_name: str = None) -> int:
+def start_session(session_url: str, mlops_version: str = None, yolo_version: str = None) -> int:
     """
     백엔드에 세션 시작을 요청하고 세션 ID를 반환.
     실패 시 None 반환.
     """
     try:
-        payload = {"model_name": model_name}
+        payload = {
+            "mlops_version": mlops_version,
+            "yolo_version": yolo_version
+        }
         response = requests.post(session_url, json=payload, timeout=5.0)
         if response.status_code == 201:
             data = response.json()
             session_id = data.get("id")
-            print(f"[Main] 세션 시작: ID={session_id}, 모델={model_name}")
+            print(f"[Main] 세션 시작: ID={session_id}, MLOps={mlops_version}, YOLO={yolo_version}")
             return session_id
         else:
             print(f"[Main] 세션 시작 실패: HTTP {response.status_code}")
@@ -169,8 +179,8 @@ def main():
     # 세션 시작
     session_id = None
     if not args.no_session:
-        model_version = get_current_model_version()
-        session_id = start_session(args.session_url, model_name=model_version)
+        mlops_ver, yolo_ver = get_current_model_version()
+        session_id = start_session(args.session_url, mlops_version=mlops_ver, yolo_version=yolo_ver)
 
     # Queue 생성
     frame_queue = queue.Queue(maxsize=config.FRAME_QUEUE_SIZE * len(input_sources))
@@ -184,7 +194,8 @@ def main():
     # 2. 추론 워커 초기화
     print(f"[Main] 추론 워커 초기화 중 (모델: {config.MODEL_PATH})...")
     try:
-        inference_worker = InferenceWorker(crop_queue, upload_queue, config.MODEL_PATH, session_id=session_id)
+        inference_worker = InferenceWorker(crop_queue, upload_queue, config.MODEL_PATH, 
+                                           session_id=session_id, session_url=args.session_url if not args.no_session else None)
     except Exception as e:
         print(f"[Main] 추론 워커 초기화 실패: {e}")
         if session_id:

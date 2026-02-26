@@ -97,7 +97,11 @@ with DAG(
     RUN_DIR="{PROJECT_ROOT}/runs/qat/{run_id}_qat"
     ONNX_PATH="${{RUN_DIR}}/weights/best.onnx"
     
-    {PYTHON_BIN} {SCRIPTS_DIR}/register_model.py --model-path "${{ONNX_PATH}}" --tags "run_id={run_id},status=retrained"
+    # 모델 설정을 통해 사용된 YOLO 버전을 파악합니다.
+    # config.yaml의 model_module 값을 파싱하여 yolo_version 태그로 부여
+    YOLO_VER=$(grep -oP '^model_module:\\s*"\\K[^"]+' {PROJECT_ROOT}/configs/config.yaml || echo "unknown")
+    
+    {PYTHON_BIN} {SCRIPTS_DIR}/register_model.py --model-path "${{ONNX_PATH}}" --tags "run_id={run_id},status=retrained,yolo_version=${{YOLO_VER}}"
     """
     
     t5_register = BashOperator(

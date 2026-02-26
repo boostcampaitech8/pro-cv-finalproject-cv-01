@@ -175,7 +175,7 @@ class ModelUpdater:
 
         if new_map >= current_map:
             print("🎉 신규 모델 채택!")
-            self.switch_model(engine_path, version)
+            self.switch_model(engine_path, version, meta)
             self.report_status(version, "active", "Promoted after eval", new_map, meta.get("run_id"))
             self.promote_in_mlflow(version)
         else:
@@ -236,7 +236,7 @@ class ModelUpdater:
 
     # ── 모델 교체 (atomic symlink) ───────────────────────────────────────────
 
-    def switch_model(self, engine_path: str, version):
+    def switch_model(self, engine_path: str, version, meta=None):
         """
         current.engine 심링크를 atomic하게 교체합니다.
 
@@ -257,6 +257,25 @@ class ModelUpdater:
         os.rename(tmp_target, target)
         self.current_version = str(version)
         print(f"🔄 심링크 교체 완료: '{target}' → {abs_engine}")
+
+        # MLOps 버전과 YOLO 버전을 로컬 파일에 저장하여 main.py와 inference_worker가 세션 갱신에 쓰도록 함
+        yolo_version = "unknown"
+        if meta and "tags" in meta:
+            yolo_version = meta["tags"].get("yolo_version", "unknown")
+            
+        version_info = {
+            "mlops_version": self.current_version,
+            "yolo_version": yolo_version
+        }
+        
+        version_file_path = os.path.join(os.path.dirname(config.MODEL_PATH), "current_version.json")
+        try:
+            import json
+            with open(version_file_path, "w") as f:
+                json.dump(version_info, f)
+            print(f"📄 모델 버전 정보 갱신 완료: {version_file_path}")
+        except Exception as e:
+            print(f"⚠️ 모델 버전 파일 저장 실패: {e}")
 
         # inference_worker에 핫스왑 신호 전달
         with open(config.RELOAD_FLAG_PATH, 'w') as f:

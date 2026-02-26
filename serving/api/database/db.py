@@ -35,15 +35,17 @@ async def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 started_at TEXT NOT NULL,
                 ended_at TEXT,
-                model_name TEXT
+                mlops_version TEXT,
+                yolo_version TEXT
             )
         """)
 
-        # 기존 sessions 테이블에 model_name 컬럼이 없으면 추가 (마이그레이션)
+        # 기존 sessions 테이블 마이그레이션 (필요시 컬럼 추가)
         try:
-            await db.execute("SELECT model_name FROM sessions LIMIT 1")
+            await db.execute("ALTER TABLE sessions ADD COLUMN mlops_version TEXT")
+            await db.execute("ALTER TABLE sessions ADD COLUMN yolo_version TEXT")
         except aiosqlite.OperationalError:
-            await db.execute("ALTER TABLE sessions ADD COLUMN model_name TEXT")
+            pass
 
         # 검사 로그 테이블 생성
         await db.execute("""
@@ -354,7 +356,7 @@ async def get_defect_logs(session_id: Optional[int] = None, camera_id: Optional[
 
 # ===== 세션 관리 함수 =====
 
-async def create_session(model_name: Optional[str] = None) -> Dict:
+async def create_session(mlops_version: Optional[str] = None, yolo_version: Optional[str] = None) -> Dict:
     """
     새 세션을 생성하고 ID와 시작 시간을 반환.
     """
@@ -363,13 +365,13 @@ async def create_session(model_name: Optional[str] = None) -> Dict:
 
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            "INSERT INTO sessions (started_at, model_name) VALUES (?, ?)",
-            (started_at, model_name)
+            "INSERT INTO sessions (started_at, mlops_version, yolo_version) VALUES (?, ?, ?)",
+            (started_at, mlops_version, yolo_version)
         )
         await db.commit()
         session_id = cursor.lastrowid
 
-    return {"id": session_id, "started_at": started_at, "ended_at": None, "model_name": model_name}
+    return {"id": session_id, "started_at": started_at, "ended_at": None, "mlops_version": mlops_version, "yolo_version": yolo_version}
 
 
 async def end_session(session_id: int) -> Optional[Dict]:
@@ -402,7 +404,8 @@ async def end_session(session_id: int) -> Optional[Dict]:
             "id": session_id,
             "started_at": row["started_at"],
             "ended_at": ended_at,
-            "model_name": row["model_name"]
+            "mlops_version": row["mlops_version"],
+            "yolo_version": row["yolo_version"]
         }
 
 
@@ -804,6 +807,13 @@ async def get_health(session_id: Optional[str]) -> HealthResponse:
             # 기존에는 < 80%를 저신뢰도로 정의했으므로 mid + low를 사용
             low_ratio = ((dist.mid + dist.low) / total_detections) * 100
 
+    # 활성 모델 버전 추출 (session_info가 존재할 경우)
+    active_mlops_version = None
+    active_yolo_version = None
+    if session_info:
+        active_mlops_version = session_info.get("mlops_version")
+        active_yolo_version = session_info.get("yolo_version")
+
     return HealthResponse(
         status=status,
         timestamp=datetime.now(KST).isoformat(),
@@ -817,7 +827,9 @@ async def get_health(session_id: Optional[str]) -> HealthResponse:
         low_confidence_ratio=round(low_ratio, 2),
         defect_confidence_stats=defect_confidence_stats,
         defect_type_stats=defect_type_stats,
-        alerts=alerts
+        alerts=alerts,
+        active_mlops_version=active_mlops_version,
+        active_yolo_version=active_yolo_version
     )
 
 

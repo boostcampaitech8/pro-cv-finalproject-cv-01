@@ -22,19 +22,21 @@ class InferenceWorker(threading.Thread):
     3. 결과를 upload_queue로 전달
     """
 
-    def __init__(self, crop_queue: queue.Queue, upload_queue: queue.Queue, model_path: str, session_id: int = None):
+    def __init__(self, crop_queue: queue.Queue, upload_queue: queue.Queue, model_path: str, session_id: int = None, session_url: str = None):
         """
         Args:
             crop_queue: 전처리기로부터 크롭된 이미지를 받는 큐
             upload_queue: 결과를 전송할 업로드 워커용 큐
             model_path: YOLO 모델 경로 (.pt 또는 .engine)
             session_id: 세션 ID (optional)
+            session_url: 세션 API 주소 (핫스왑 시 새 세션 발급용)
         """
         super().__init__(daemon=True)
         self.crop_queue = crop_queue
         self.upload_queue = upload_queue
         self.model_path = model_path
         self.session_id = session_id
+        self.session_url = session_url
         self.running = False
 
         # Hot-Swap Race Condition 방지용 Lock
@@ -73,23 +75,53 @@ class InferenceWorker(threading.Thread):
 
     def reload_model(self):
         """
-        런타임 중 새로운 엔진이 준비되었을 때 모델 객체를 안전하게 교체합니다.
-
-        동작 순서:
-          1. Lock 없이 새 모델을 먼저 로드 (시간이 걸리는 작업, 이 동안 추론 계속)
-          2. Lock 획득 후 self.model 교체 (수μs 수준의 짧은 작업)
-          3. 기존 모델 제거 및 Lock 해제
+        런타임 중 새로운 엔진이 준비되었을 때 모델 객체를 안전하게 교체하고 세션을 갱신합니다.
         """
         print(f"[InferenceWorker] 🔄 모델 핫스왑 시작...")
         try:
-            # Lock 밖에서 먼저 로드 → 로드 중에도 추론 계속 가능
             new_model = self._load_model(self.model_path)
-            # Lock 안에서만 포인터 교체 → predict()와 충돌 방지
             with self._model_lock:
                 old_model = self.model
                 self.model = new_model
                 del old_model
-            print(f"[InferenceWorker] ✅ 모델 Hot-Swap 완료!")
+                
+            # 세션 갱신 (기존 세션 종료 -> 새 세션 시작)
+            if self.session_url:
+                import requests
+                # 1. 기존 세션 종료
+                if self.session_id is not None:
+                    try:
+                        requests.patch(f"{self.session_url}{self.session_id}", timeout=5.0)
+                        print(f"[InferenceWorker] 기존 세션({self.session_id}) 종료 완료")
+                    except Exception as e:
+                        print(f"[InferenceWorker] 세션 종료 요청 실패: {e}")
+                
+                # 2. 새 모델 버전 읽어오기
+                version_file = os.path.join(os.path.dirname(config.MODEL_PATH), "current_version.json")
+                mlops_ver, yolo_ver = "v0", "v0"
+                if os.path.exists(version_file):
+                    try:
+                        import json
+                        with open(version_file, "r") as f:
+                            v_info = json.load(f)
+                            mlops_ver = v_info.get("mlops_version", "v0")
+                            yolo_ver = v_info.get("yolo_version", "v0")
+                    except Exception as e:
+                        pass
+                
+                # 3. 새 세션 시작
+                try:
+                    payload = {"mlops_version": mlops_ver, "yolo_version": yolo_ver}
+                    response = requests.post(self.session_url, json=payload, timeout=5.0)
+                    if response.status_code == 201:
+                        self.session_id = response.json().get("id")
+                        print(f"[InferenceWorker] 새 세션 시작 완료: ID={self.session_id} MLOps={mlops_ver} YOLO={yolo_ver}")
+                    else:
+                        print(f"[InferenceWorker] 새 세션 시작 실패: HTTP {response.status_code}")
+                except Exception as e:
+                    print(f"[InferenceWorker] 세션 교체 요청 실패: {e}")
+
+            print(f"[InferenceWorker] ✅ 모델 Hot-Swap 프로세스 완료!")
         except Exception as e:
             print(f"[InferenceWorker] ❌ 모델 리로드 실패. 기존 모델 유지: {e}")
 
