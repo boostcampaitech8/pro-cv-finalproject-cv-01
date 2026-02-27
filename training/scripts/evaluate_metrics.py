@@ -13,6 +13,29 @@ from collections import defaultdict
 # 한글 출력을 위한 유니코드 처리 (필요시)
 import sys
 
+# ==============================================================================
+# Helper Classes (Pickling Safe)
+# ==============================================================================
+class FeatureHook:
+    """
+    Hook to capture feature maps or logits. 
+    Must be present during unpickling if the model was saved with hooks.
+    """
+    def __init__(self, storage, idx):
+        self.storage = storage
+        self.idx = idx
+
+    def __call__(self, module, input, output, **kwargs):
+        self.storage[self.idx] = output
+
+class FeatureAdapter(torch.nn.Module):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        self.adapters = torch.nn.ModuleList()
+
+class KDLoss:
+    pass
+
 def calculate_iou(box1, box2):
     """
     Calculate IoU between two boxes (x, y, w, h) normalized.
@@ -73,8 +96,20 @@ def evaluate_metrics(weights, data_config, test_images_txt, imgsz=640, conf_thre
     # 2. 표준 mAP 평가 (YOLO Val 사용)
     print("\n[1/3] 표준 mAP 평가 중...")
     try:
-        # data_config 파일을 절대 경로로 변환 (YOLO val 버그 방지)
-        val_results = model.val(data=data_config, split='test', imgsz=imgsz, device=device, verbose=False)
+        # data_config 파일을 절대 경로로 변환
+        abs_data_path = os.path.abspath(data_config)
+        
+        # Verify the yaml has 'test' key if we want to evaluate on test set
+        with open(abs_data_path, 'r') as f:
+            d = yaml.safe_load(f)
+            if 'test' not in d:
+                 print(f"  -> 경고: {abs_data_path}에 'test' 경로가 없습니다. 'val' 데이터를 대체 사용합니다.")
+                 split_to_use = 'val'
+            else:
+                 split_to_use = 'test'
+            
+        print(f"  -> Using data path: {abs_data_path} (split: {split_to_use})")
+        val_results = model.val(data=abs_data_path, split=split_to_use, imgsz=imgsz, device=device, verbose=False)
         map50 = val_results.box.map50
         map50_95 = val_results.box.map
         
@@ -284,6 +319,21 @@ def evaluate_metrics(weights, data_config, test_images_txt, imgsz=640, conf_thre
     print(f"{'[Speed] FPS':<40} | {fps:.2f}")
     print(f"{'[Speed] Latency (ms)':<40} | {avg_latency:.2f}")
     print("-" * 60)
+    
+    # Class-wise Standard Results
+    if val_results:
+        print(f"{'[Standard Class-wise Results]':<40}")
+        print(f"{'Class':<20} | {'mAP50':<10} | {'mAP50-95':<10}")
+        print("-" * 45)
+        names = val_results.names
+        for i, cls_idx in enumerate(val_results.box.ap_class_index):
+            idx = int(cls_idx)
+            name = names[idx]
+            c_map50 = val_results.box.class_result(i)[2]
+            c_map50_95 = val_results.box.class_result(i)[3]
+            print(f"{name:<20} | {c_map50:.4f}     | {c_map50_95:.4f}")
+        print("-" * 60)
+
     print(f"{'[Global Defect] Precision (Total Micro)':<40} | {global_prec:.4f}")
     print(f"{'[Global Defect] Recall (Total Micro)':<40} | {global_rec:.4f}")
     print("-" * 60)
@@ -300,7 +350,7 @@ def evaluate_metrics(weights, data_config, test_images_txt, imgsz=640, conf_thre
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="PCB Defect Detection Custom Metrics Evaluation")
     parser.add_argument('--weights', type=str, required=True, help='Path to model weights (.pt)')
-    parser.add_argument('--data', type=str, default='training/PCB_DATASET/data.yaml', help='Path to data.yaml')
+    parser.add_argument('--data', type=str, default='PCB_DATASET/data.yaml', help='Path to data.yaml')
     parser.add_argument('--imgsz', type=int, default=1280, help='Image size')
     parser.add_argument('--device', type=str, default='0', help='Device')
     

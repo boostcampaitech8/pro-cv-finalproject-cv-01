@@ -8,7 +8,7 @@ class PCBTrainer:
         특정 데이터(data.yaml) 파일에 대한 학습을 실행합니다.
         """
         import wandb
-        import mlflow
+
         
         # MLflow 설정
         # 1. Ultralytics의 자동 MLflow 연동 기능 비활성화 (충돌 방지)
@@ -58,8 +58,8 @@ class PCBTrainer:
                 cb_func = getattr(mlflow_callbacks, cb_name, None)
                 if cb_func and cb_func in self.model.callbacks.get(list_name, []):
                     self.model.callbacks[list_name].remove(cb_func)
-            except Exception:
-                pass
+        except ImportError:
+            pass
         
         epoch_start_time = 0
         current_batch_idx = 0
@@ -252,6 +252,7 @@ class PCBTrainer:
         최종 검증 및 지표 요약을 출력합니다.
         """
         import os
+
         from ultralytics import YOLO
         import mlflow
         

@@ -1,0 +1,97 @@
+# ==============================================================================
+# Knowledge Distillation (KD) 학습 설정 파일
+# ==============================================================================
+
+# 1. 모델 경로 설정
+# ------------------------------------------------------------------------------
+# 교사 모델 (Teacher Model) 경로 (.pt 파일)
+# 이미 학습이 완료된, 성능이 좋은 모델이어야 합니다.
+teacher_model: 'runs/v11x_960/weights/best.pt'
+
+# 학생 모델 (Student Model) 경로 (.pt 파일)
+# 학습시킬 대상 모델입니다. (Pretrained 가중치 또는 초기화된 가중치)
+student_model: 'yolo11n.pt'
+
+
+# 2. 데이터 및 학습 환경 설정
+# ------------------------------------------------------------------------------
+# 데이터셋 설정 파일 경로 (.yaml)
+data: 'PCB_DATASET/data.yaml'
+
+# 프로젝트 이름 (실험 결과가 저장될 폴더명)
+# [Fix] training/runs 에 저장되도록 설정
+project: 'runs'
+
+# 실험 이름 (runs/kd_feature/{name} 에 저장됨)
+# 비워둘 경우(null) 자동으로 'KD_{Student}_to_{Teacher}' 형식으로 생성됩니다.
+name: null
+
+# 학습 에포크 수 (전체 데이터셋 반복 횟수)
+epochs: 200
+
+# 배치 크기 (Batch Size)
+# -1로# 배치 사이즈 (GPU 메모리에 맞게 조절)
+# -1로 설정하면 AutoBatch 기능을 사용합니다. (권장)
+batch: 8
+
+# 이미지 크기 (Image Size)
+# 입력 이미지의 해상도입니다. (픽셀 단위)
+imgsz: 640
+
+# 사용할 디바이스 설정
+# 예: '0' (0번 GPU), '0,1' (멀티 GPU), 'cpu' (CPU 사용)
+device: '0'
+
+# 데이터 로더 워커 수 (CPU 스레드 수)
+workers: 8
+
+# 조기 종료 (Early Stopping) Patience
+# 지정된 에포크 동안 성능 향상이 없으면 학습을 중단합니다.
+patience: 50
+
+# Optimizer 설정
+# 옵션: 'auto', 'SGD', 'Adam', 'AdamW', 'RMSProp'
+optimizer: 'Adamw'
+
+# 초기 학습률 (Initial Learning Rate)
+# SGD=0.01, Adam=0.001 등 Optimizer에 따라 다를 수 있습니다.
+lr0: 0.001
+
+# 최종 학습률 (Final Learning Rate) 비율
+# lrf * lr0 가 최종 학습률이 됩니다.
+lrf: 0.001
+
+# Cosine LR Scheduler 사용 여부
+# True: 사용, False: 미사용
+cos_lr: false
+
+
+# 3. KD(Knowledge Distillation) 하이퍼파라미터 설정
+# ------------------------------------------------------------------------------
+# [Box Loss] 위치(Bounding Box) 정보 증류 가중치
+# 교사 모델의 박스 예측을 얼마나 따라할지 결정합니다.
+# 권장 범위: 0.0 ~ 1.0 (일반적으로 0.1 사용)
+kd_alpha_box: 0.0
+
+# [Class Loss] 클래스(분류) 정보 증류 가중치
+# 교사 모델의 클래스 확률 분포를 얼마나 따라할지 결정합니다.
+# 권장 범위: 0.0 ~ 1.0 (일반적으로 0.5 사용)
+kd_alpha_cls: 0.5
+
+# [Feature Loss] 특징 맵(Feature Map) 증류 가중치
+# 교사 모델의 중간 레이어 특징을 얼마나 따라할지 결정합니다.
+# 권장 범위: 0.0 ~ 100.0 (손실 함수 타입에 따라 스케일이 다름, 보통 1.0 시작)
+kd_beta: 1.0
+
+# [Temperature] Softmax 온도 계수
+# 값이 높을수록 확률 분포가 부드러워져(Soft), 정보를 더 많이 전달합니다.
+# 값이 낮을수록 가장 높은 확률만 강조됩니다(Hard).
+# 권장 값: 1.0 ~ 10.0 (보통 4.0 사용)
+kd_T: 4.0
+
+# [Feature Loss Type] 특징 손실 함수 타입 선택
+# - 'mse': Mean Squared Error (픽셀 단위 차이, 가장 일반적이고 안정적임)
+# - 'cwd': Channel-wise Distillation (채널별 분포 차이, 특정 채널의 활성화를 맞춤)
+# - 'at': Attention Transfer (채널의 절댓값 합을 통한 공간적 주의 집중 맵 비교)
+# - 'fgfi': Fine-Grained Feature Imitation (객체(Foreground) 영역에만 집중하여 학습)
+kd_feature_type: 'fgfi'

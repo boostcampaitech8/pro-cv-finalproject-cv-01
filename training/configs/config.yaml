@@ -46,12 +46,12 @@ weight_decay: 0.0005 # Weight decay (Standard: 0.0005)
 # Scheduler
 # Options: ['linear', 'cosine']
 scheduler_type: 'cosine' 
-lrf: 0.01          # Final LR = lr0 * lrf (Standard: 0.01 -> ends at 1e-4)
+lrf: 0.1          # Keep LR higher for longer (Ends at 1e-4 if lr0=1e-3)
 
 # Loss Gains (YOLOv8 Defaults)
 # Loss Gains (YOLOv8 Defaults)
 box: 7.5
-cls: 0.5
+cls: 2.0           # Priority: Classification (mAP50)
 dfl: 1.5
 
 # Augmentation Control (YOLOv8 Defaults)
@@ -67,5 +67,5 @@ perspective: 0.0   # Image perspective (+/- fraction), range 0-0.001 (Default: 0
 flipud: 0.0        # Image flip up-down (probability) (Default: 0.0)
 fliplr: 0.5        # Image flip left-right (probability) (Default: 0.5)
 mosaic: 1.0        # Image mosaic (probability) (Default: 1.0)
-mixup: 0.0         # Image mixup (probability) (Default: 0.0)
+mixup: 0.0         # Enable mixup for better class robustness
 copy_paste: 0.0    # Segment copy-paste (probability) (Default: 0.0)

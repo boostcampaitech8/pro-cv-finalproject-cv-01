@@ -44,6 +44,8 @@ htmlcov/
 
 # Training
 training/PCB_DATASET/
+runs/
+**/runs/
 training/runs/
 *.pt
 training/aws/
@@ -80,3 +82,4 @@ storage/
 *.onnx
 .building_engine
 .dockerignore
+training/report/
