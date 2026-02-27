@@ -30,17 +30,24 @@ async def init_db():
 
     async with aiosqlite.connect(DB_PATH) as db:
         # 세션 테이블 생성
+        # model_name을 저장하기 위해 컬럼 추가; 기존 mlops_version/yolo_version은 더 이상 사용되지 않습니다.
         await db.execute("""
             CREATE TABLE IF NOT EXISTS sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 started_at TEXT NOT NULL,
                 ended_at TEXT,
+                model_name TEXT,
                 mlops_version TEXT,
                 yolo_version TEXT
             )
         """)
 
         # 기존 sessions 테이블 마이그레이션 (필요시 컬럼 추가)
+        try:
+            await db.execute("ALTER TABLE sessions ADD COLUMN model_name TEXT")
+        except aiosqlite.OperationalError:
+            pass
+        # 과거 컬럼명도 명목상 유지하되 사용 안 함
         try:
             await db.execute("ALTER TABLE sessions ADD COLUMN mlops_version TEXT")
             await db.execute("ALTER TABLE sessions ADD COLUMN yolo_version TEXT")
