@@ -87,8 +87,25 @@ class ModelUpdater:
                 pass
         # 제거할 빌드 파일 목록이 있으면 삭제
         if hasattr(self, 'current_build_files') and self.current_build_files:
+            # 현재 추론에 사용 중인 모델 파일 확인 (심링크의 실제 경로)
+            active_model_path = None
+            if os.path.exists(config.MODEL_PATH):
+                try:
+                    active_model_path = os.path.realpath(config.MODEL_PATH)
+                except Exception:
+                    pass
+            
             for fpath in self.current_build_files:
                 if os.path.exists(fpath):
+                    # 삭제하려는 파일이 현재 사용 중인 모델과 동일한지 확인
+                    try:
+                        real_fpath = os.path.realpath(fpath)
+                        if active_model_path and real_fpath == active_model_path:
+                            print(f"  ⚠️  현재 추론 중인 파일이므로 보호: {fpath}")
+                            continue
+                    except Exception:
+                        pass
+                    
                     try:
                         os.remove(fpath)
                         print(f"  빌드 중이던 파일 삭제: {fpath}")
