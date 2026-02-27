@@ -30,8 +30,8 @@ jobs:
             # 최신 코드 가져오기
             cd ~/pro-cv-finalproject-cv-01
             git fetch origin
-            git checkout dev
-            git pull origin dev
+            git checkout main
+            git pull origin main
 
             # 백엔드 배포
             cd serving/api
