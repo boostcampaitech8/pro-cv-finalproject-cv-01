@@ -8,7 +8,7 @@ wheels/
 .eggs/
 
 # Virtual environments
-.venv/
+.venv*
 venv/
 
 # IDE/Editor
@@ -47,6 +47,7 @@ training/PCB_DATASET/
 training/runs/
 *.pt
 training/aws/
+benchmarks/
 runs/
 simple_auth_manager_passwords.json.generated
 aws/
@@ -70,5 +71,12 @@ serving/rtsp/images/
 CLAUDE.md
 .claude/
 
-# Edge 디버그
+# Edge 
 serving/edge/debug_crops/
+serving/edge/golden_set
+test_dataset/
+storage/
+*.engine
+*.onnx
+.building_engine
+.dockerignore

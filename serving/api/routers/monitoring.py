@@ -57,6 +57,5 @@ async def get_alerts(
             "defect_rate": health_data.defect_rate,
             "avg_confidence": avg_confidence
         },
-        "active_mlops_version": health_data.active_mlops_version,
-        "active_yolo_version": health_data.active_yolo_version
+        "active_model": health_data.active_model
     }

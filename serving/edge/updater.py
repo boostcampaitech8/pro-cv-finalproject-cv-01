@@ -51,6 +51,51 @@ class ModelUpdater:
         # interval은 config 기본값 사용, 명시적으로 넘기면 덮어씀
         self.interval = interval if interval is not None else config.MODEL_POLL_INTERVAL
 
+    # ── 유틸리티 ────────────────────────────────────────────────────────────
+
+    def _wait_until_idle(self, context: str = ""):
+        """`config.INFERENCE_BUSY_FLAG_PATH`가 사라질 때까지 대기합니다.
+
+        context는 로그 메시지에 포함되어 현재 무슨 작업을 대기하고 있는지
+        표시합니다. 예: "download start", "build start" 등.
+        """
+        while os.path.exists(config.INFERENCE_BUSY_FLAG_PATH):
+            desc = f" ({context})" if context else ""
+            print(f"🔒 추론 바쁨{desc} — 대기 중...")
+            self._kill_trtexec_if_running()
+            time.sleep(10)
+
+    def _kill_trtexec_if_running(self):
+        """현재 실행중인 trtexec 프로세스를 찾아 강제 종료하고 관련 빌드 파일 삭제."""
+        killed = False
+        for pid in os.popen("pgrep -f trtexec").read().split():
+            try:
+                os.kill(int(pid), 9)
+                print(f"⛔ trtexec PID {pid} 강제 종료 (업데이트 일시 중단)")
+                killed = True
+            except Exception:
+                pass
+        if not killed:
+            # nothing to do
+            return
+        # if we killed something, also remove BUILDING_FLAG_PATH if exists
+        if os.path.exists(config.BUILDING_FLAG_PATH):
+            try:
+                os.remove(config.BUILDING_FLAG_PATH)
+                print("  빌드 플래그도 함께 삭제됨")
+            except Exception:
+                pass
+        # 제거할 빌드 파일 목록이 있으면 삭제
+        if hasattr(self, 'current_build_files') and self.current_build_files:
+            for fpath in self.current_build_files:
+                if os.path.exists(fpath):
+                    try:
+                        os.remove(fpath)
+                        print(f"  빌드 중이던 파일 삭제: {fpath}")
+                    except Exception as e:
+                        print(f"  파일 삭제 실패: {fpath} ({e})")
+            self.current_build_files = []
+
     # ── 조건 필터 ────────────────────────────────────────────────────────────
 
     def _meets_condition(self, meta: dict) -> bool:
@@ -70,6 +115,69 @@ class ModelUpdater:
             )
             return False
         return True
+
+    # ── 상태/중단 헬퍼 ──────────────────────────────────────────────────────────
+
+    def print_status(self):
+        """현재 빌드 플래그 및 프로세스 상태를 출력"""
+        print(f"BUILDING_FLAG_PATH: {config.BUILDING_FLAG_PATH}")
+        if os.path.exists(config.BUILDING_FLAG_PATH):
+            try:
+                with open(config.BUILDING_FLAG_PATH, 'r') as f:
+                    print(f"  내용: {f.read().strip()}")
+            except Exception:
+                pass
+        else:
+            print("  플래그 없음")
+        # 프로세스 검색
+        procs = []
+        for line in os.popen("pgrep trtexec -a").read().splitlines():
+            procs.append(line)
+        if procs:
+            print("현재 실행 중인 trtexec 프로세스:")
+            for p in procs:
+                print("  ", p)
+        else:
+            print("실행 중인 trtexec 없음")
+
+    def abort_build(self):
+        """진행 중인 TRT 빌드를 중단하고 관련 파일을 정리합니다."""
+        if not os.path.exists(config.BUILDING_FLAG_PATH):
+            print("빌드 플래그가 없음. 중단할 작업이 없습니다.")
+            return
+        try:
+            with open(config.BUILDING_FLAG_PATH, 'r') as f:
+                info = f.read().strip()
+        except Exception:
+            info = "(읽기 실패)"
+        print(f"빌드 플래그 발견: {info}")
+        # trtexec 프로세스 종료
+        killed = False
+        for pid in os.popen("pgrep trtexec").read().split():
+            try:
+                os.kill(int(pid), 9)
+                print(f"  trtexec PID {pid} 종료")
+                killed = True
+            except Exception:
+                pass
+        if not killed:
+            print("  실행 중인 trtexec 프로세스를 찾지 못함")
+        # 관련 파일 삭제 (version 번호 포함된 onnx/engine)
+        for fname in os.listdir(config.MODELS_DIR):
+            if fname.startswith("v") and (fname.endswith(".onnx") or fname.endswith(".engine")):
+                path = os.path.join(config.MODELS_DIR, fname)
+                try:
+                    os.remove(path)
+                    print(f"  삭제: {path}")
+                except Exception as e:
+                    print(f"  삭제 실패: {path} ({e})")
+        # 플래그 삭제
+        try:
+            os.remove(config.BUILDING_FLAG_PATH)
+            print("빌드 플래그 삭제")
+        except Exception as e:
+            print(f"빌드 플래그 삭제 실패: {e}")
+        print("빌드 중단 및 정리 완료")
 
     # ── S3 폴링 ──────────────────────────────────────────────────────────────
 
@@ -108,12 +216,18 @@ class ModelUpdater:
             self._evaluate_and_promote(local_engine_path, version, meta)
             return
 
-        # ② 중복 빌드 방지: BUILDING_FLAG가 있으면 다른 빌드가 진행 중
+        # ② 중복 빌드 방지: BUILDING_FLAG가 있으면 다른 updater 인스턴스나
+        #     이전 작업이 아직 trtexec를 돌리고 있다는 뜻입니다.
+        #     이 경우 지금 수행 중인 주기를 건너뜁니다.
         if os.path.exists(config.BUILDING_FLAG_PATH):
-            print("⚠️  이미 TRT 빌드 진행 중 → 이번 폴링 주기 스킵")
+            print("⚠️  이미 TRT 빌드 진행 중 (BUILDING_FLAG 존재) → 이번 폴링 주기 스킵")
             return
 
         # ③ ONNX 다운로드
+        #    다운로드 중에는 바쁨 플래그가 발생해도 중단하기 어렵기 때문에
+        #    시작 전에 한 번 확인만 합니다.
+        self.current_build_files = [local_onnx_path, local_engine_path]
+        self._wait_until_idle("download start")
         print(f"📥 S3에서 다운로드 중: {s3_key} → {local_onnx_path}")
         try:
             self.s3_client.download_file(self.bucket, s3_key, local_onnx_path)
@@ -127,26 +241,50 @@ class ModelUpdater:
         #    BUILDING_FLAG: updater 내부 전용 (중복 빌드 방지).
         #    inference_worker는 이 플래그를 읽지 않으며,
         #    빌드 중에도 기존 엔진으로 추론을 계속 수행합니다.
-        print(f"🔨 TensorRT 엔진 빌드 시작 (workspace={config.TRT_WORKSPACE_MB}MB, "
+        #    단, 사용자가 선택한 정책에 따라 "추론이 바쁠 때 빌드를 대기"하도록 구성되어
+        #    있으면, 실제 trtexec 실행 전에 `INFERENCE_BUSY_FLAG_PATH`가 없어질 때까지 대기합니다.
+        #    (현재 정책: wait-until-idle before build)
+        if os.path.exists(config.INFERENCE_BUSY_FLAG_PATH):
+            print("🔒 추론이 바쁨 — 빌드 대기 중...")
+        while os.path.exists(config.INFERENCE_BUSY_FLAG_PATH):
+            print("🔒 추론이 계속 바쁨 — 10초 후 재확인")
+            time.sleep(10)
+        # ④ TRT 엔진 빌드
+        print(f"🔨 TensorRT 엔진 빌드 준비 (workspace={config.TRT_WORKSPACE_MB}MB, "
               f"avgTiming={config.TRT_AVG_TIMING_ITERS})...")
         with open(config.BUILDING_FLAG_PATH, 'w') as f:
             f.write(f"building v{version}")
 
+        # 빌드는 장시간 걸리므로 바쁨 플래그가 켜지면 즉시 프로세스를 종료
+        self.current_build_files = [local_onnx_path, local_engine_path]
+        self._wait_until_idle("build start")
         try:
             cmd = (
                 f"trtexec"
                 f" --onnx={local_onnx_path}"
                 f" --saveEngine={local_engine_path}"
+                f" --int8"
                 f" --fp16"
                 f" --workspace={config.TRT_WORKSPACE_MB}"
                 f" --minTiming={config.TRT_MIN_TIMING_ITERS}"
                 f" --avgTiming={config.TRT_AVG_TIMING_ITERS}"
             )
-            subprocess.run(
-                cmd, shell=True, check=True,
-                timeout=config.TRT_BUILD_TIMEOUT_S
-            )
-            print("✅ TRT 엔진 빌드 성공!")
+            proc = subprocess.Popen(cmd, shell=True)
+            # 모니터링 루프
+            while True:
+                time.sleep(5)
+                if proc.poll() is not None:
+                    break
+                if os.path.exists(config.INFERENCE_BUSY_FLAG_PATH):
+                    print("🔒 추론 중 감지됨 — 빌드 프로세스 종료")
+                    proc.kill()
+                    proc.wait()
+                    print("🔨 빌드 중단됨 (추론 바쁨)")
+                    return
+            if proc.returncode == 0:
+                print("✅ TRT 엔진 빌드 성공!")
+            else:
+                raise subprocess.CalledProcessError(proc.returncode, cmd)
         except subprocess.TimeoutExpired:
             print(f"❌ TRT 빌드 타임아웃 ({config.TRT_BUILD_TIMEOUT_S}초 초과)")
             self.report_status(version, "build_timeout", "trtexec timeout", run_id=meta.get("run_id"))
@@ -258,14 +396,14 @@ class ModelUpdater:
         self.current_version = str(version)
         print(f"🔄 심링크 교체 완료: '{target}' → {abs_engine}")
 
-        # MLOps 버전과 YOLO 버전을 로컬 파일에 저장하여 main.py와 inference_worker가 세션 갱신에 쓰도록 함
-        yolo_version = "unknown"
+        # MLOps 버전과 YOLO 버전을 하나로 합쳐서 로컬 파일에 저장 (예: yolov11m_v2)
+        yolo_version = "yolov11m"
         if meta and "tags" in meta:
-            yolo_version = meta["tags"].get("yolo_version", "unknown")
+            yolo_version = meta["tags"].get("yolo_version", "yolov11m")
             
+        combined_model_name = f"{yolo_version}_{self.current_version}"
         version_info = {
-            "mlops_version": self.current_version,
-            "yolo_version": yolo_version
+            "model_name": combined_model_name
         }
         
         version_file_path = os.path.join(os.path.dirname(config.MODEL_PATH), "current_version.json")
@@ -341,6 +479,14 @@ class ModelUpdater:
         print(f"   TRT workspace: {config.TRT_WORKSPACE_MB}MB, avgTiming: {config.TRT_AVG_TIMING_ITERS}")
         try:
             while True:
+                # main/inference가 작동 중인지 확인. 바쁨 플래그가 있으면 업데이트를 보류.
+                if os.path.exists(config.INFERENCE_BUSY_FLAG_PATH):
+                    print("🔒 추론 중이므로 전체 업데이트 사이클 대기...")
+                    # 실행 중인 trtexec가 있다면 즉시 종료
+                    self._kill_trtexec_if_running()
+                    time.sleep(60)  # 1분 후 재확인
+                    continue
+
                 self.check_for_updates()
                 time.sleep(self.interval)
         except KeyboardInterrupt:
@@ -348,5 +494,20 @@ class ModelUpdater:
 
 
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Model updater utility")
+    parser.add_argument("--abort", action="store_true",
+                        help="중단된 TRT 빌드가 있으면 취소하고 관련 파일 삭제")
+    parser.add_argument("--status", action="store_true",
+                        help="현재 빌드 상태와 플래그 확인")
+    args = parser.parse_args()
+
     updater = ModelUpdater()
-    updater.run()
+
+    if args.abort:
+        updater.abort_build()
+    elif args.status:
+        updater.print_status()
+    else:
+        updater.run()
