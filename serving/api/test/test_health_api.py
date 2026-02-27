@@ -9,15 +9,23 @@ from datetime import datetime
 BASE_URL = "http://localhost:8000"
 
 
-def create_test_session(name: str):
-    """테스트 세션 생성"""
+def create_test_session(name: str, model_name: str = None):
+    """테스트 세션 생성
+
+    model_name을 보내면 서버가 해당 정보를 기록한다.
+    """
     print(f"\n{'='*60}")
-    print(f"테스트 세션: {name}")
+    print(f"테스트 세션: {name} (model={model_name})")
     print('='*60)
 
-    resp = requests.post(f"{BASE_URL}/sessions/")
-    session_id = resp.json()["id"]
-    print(f"세션 ID: {session_id}")
+    payload = {}
+    if model_name is not None:
+        payload["model_name"] = model_name
+
+    resp = requests.post(f"{BASE_URL}/sessions/", json=payload if payload else None)
+    data = resp.json()
+    session_id = data.get("id")
+    print(f"세션 ID: {session_id}, model stored: {data.get('model_name')}")
     return session_id
 
 
@@ -78,7 +86,13 @@ def check_health(session_id: int):
 
 def test_scenario_1_healthy():
     """시나리오 1: 정상 상태 (알림 없음)"""
-    session_id = create_test_session("시나리오 1: 정상 상태")
+    session_id = create_test_session("시나리오 1: 정상 상태", model_name="yolov11m_v0")
+
+    # 확인: /sessions 리스트에 모델명이 저장되어 있는지
+    sessions_resp = requests.get(f"{BASE_URL}/sessions/")
+    sessions_data = sessions_resp.json()["sessions"]
+    matching = [s for s in sessions_data if s["id"] == session_id]
+    assert matching and matching[0].get("model_name") == "yolov11m_v0"
 
     # 불량률 5% (50개 중 2~3개 불량)
     for i in range(50):
@@ -99,7 +113,12 @@ def test_scenario_1_healthy():
 
 def test_scenario_2_high_defect_rate():
     """시나리오 2: 높은 불량률 (warning 또는 critical)"""
-    session_id = create_test_session("시나리오 2: 높은 불량률")
+    session_id = create_test_session("시나리오 2: 높은 불량률", model_name="yolov11m_v0")
+
+    sessions_resp = requests.get(f"{BASE_URL}/sessions/")
+    sessions_data = sessions_resp.json()["sessions"]
+    matching = [s for s in sessions_data if s["id"] == session_id]
+    assert matching and matching[0].get("model_name") == "yolov11m_v0"
 
     # 불량률 25% (40개 중 10개 불량)
     for i in range(40):

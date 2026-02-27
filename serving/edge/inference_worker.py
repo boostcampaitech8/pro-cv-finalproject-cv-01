@@ -113,18 +113,8 @@ class InferenceWorker(threading.Thread):
                     except Exception as e:
                         print(f"[InferenceWorker] 세션 종료 요청 실패: {e}")
                 
-                # 2. 새 모델 버전 읽어오기
-                version_file = os.path.join(os.path.dirname(config.MODEL_PATH), "current_version.json")
-                mlops_ver, yolo_ver = "v0", "yolov11m"
-                if os.path.exists(version_file):
-                    try:
-                        import json
-                        with open(version_file, "r") as f:
-                            v_info = json.load(f)
-                            mlops_ver = v_info.get("mlops_version", "v0")
-                            yolo_ver = v_info.get("yolo_version", "yolov11m")
-                    except Exception as e:
-                        pass
+                # 2. 현재 모델명 가져오기
+                model_name = self._get_model_name()
                 
                 # 3. 새 세션 시작
                 try:

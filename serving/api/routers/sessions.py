@@ -14,20 +14,22 @@ router = APIRouter(
 
 
 @router.post("/", response_model=SessionCreateResponse, status_code=status.HTTP_201_CREATED)
-async def create_session(request: SessionCreateRequest = SessionCreateRequest()):
+async def create_session(request: SessionCreateRequest):
     """
     새 세션을 시작합니다.
     엣지에서 추론 시작 시 호출.
     모델 교체 시 새 세션을 생성하여 모델별 추적 가능.
     """
-    session = await db.create_session(model_name=request.model_name)
-    return SessionCreateResponse(
-        id=session["id"],
-        started_at=session["started_at"],
-        mlops_version=session["mlops_version"],
-        yolo_version=session["yolo_version"],
-        model_name=session.get("model_name")
-    )
+    try:
+        session = await db.create_session(model_name=request.model_name)
+        return SessionCreateResponse(
+            id=session["id"],
+            started_at=session["started_at"],
+            model_name=session["model_name"]
+        )
+    except Exception as e:
+        print(f"[Sessions] create_session 에러: {e}")
+        raise HTTPException(status_code=500, detail=f"세션 생성 실패: {str(e)}")
 
 
 @router.patch("/{session_id}", response_model=SessionResponse)

@@ -27,46 +27,66 @@ from upload_worker import UploadWorker
 
 
 
-def get_current_model_version() -> str:
+def get_current_model_version() -> dict:
     """
-    현재 모델 버전(model_name)을 반환.
-    current_version.json 파일이 있으면 해당 버전을, 없으면 기본값 반환.
+    현재 모델 버전 정보를 반환.
+    current_version.json 파일이 있으면 해당 딕셔너리를, 없으면 기본값 반환.
     """
     version_file = os.path.join(os.path.dirname(config.MODEL_PATH), "current_version.json")
-    mlops_version = "v0"
-    yolo_version = "yolov11m"
+    
+    # 기본값
+    v_info = {
+        "model_name": "yolov11m_v0",
+        "yolo_version": "yolov11m",
+        "mlops_version": "v0"
+    }
     
     if os.path.exists(version_file):
         try:
             import json
             with open(version_file, 'r') as f:
-                v_info = json.load(f)
-                mlops_version = v_info.get("mlops_version", "v0")
-                yolo_version = v_info.get("yolo_version", "yolov11m")
+                data = json.load(f)
+                print(f"[Main] 모델 버전 파일 로드: {version_file}")
+                # updater.py가 쓰는 model_name 필드 처리
+                if "model_name" in data:
+                    v_info["model_name"] = data["model_name"]
+                    print(f"       - 로드된 모델명: {v_info['model_name']}")
+                    # model_name에서 yolo_version과 mlops_version 파싱 시도 (선택 사항)
+                    parts = data["model_name"].split('_')
+                    if len(parts) >= 2:
+                        v_info["yolo_version"] = parts[0]
+                        v_info["mlops_version"] = parts[1]
+                else:
+                    v_info.update(data)
         except Exception as e:
             print(f"[Main] 모델 버전 파일 읽기 에러: {e}")
             
-    return model_name
+    return v_info
 
 
-def start_session(session_url: str, model_name: str = None) -> int:
+def start_session(session_url: str, model_info: dict) -> int:
     """
     백엔드에 세션 시작을 요청하고 세션 ID를 반환.
     실패 시 None 반환.
     """
     try:
+        api_key = os.getenv("EDGE_API_KEY")
+        headers = {}
+        if api_key:
+            headers["X-API-KEY"] = api_key
+            
+        model_name = model_info.get("model_name", "yolov11m_v0")
+        print(f"[Main] 세션 요청 시작 (모델: {model_name})")
         payload = {
             "model_name": model_name
         }
-        response = requests.post(session_url, json=payload, timeout=5.0)
+        response = requests.post(session_url, json=payload, headers=headers, timeout=5.0)
         if response.status_code == 201:
             data = response.json()
             session_id = data.get("id")
-            # 사용자 요청에 따른 yolov11m_v0 형태 로그 출력
-            combined_name = f"{yolo_version}_{mlops_version}"
             print(f"[Main] 🚀 세션 시작 성공!")
             print(f"       - 세션 ID: {session_id}")
-            print(f"       - 활성 모델: {combined_name}")
+            print(f"       - 활성 모델: {model_name}")
             return session_id
         else:
             print(f"[Main] ❌ 세션 시작 실패: HTTP {response.status_code} ({response.text})")
@@ -84,7 +104,12 @@ def end_session(session_url: str, session_id: int):
         return
 
     try:
-        response = requests.patch(f"{session_url}{session_id}", timeout=5.0)
+        api_key = os.getenv("EDGE_API_KEY")
+        headers = {}
+        if api_key:
+            headers["X-API-KEY"] = api_key
+            
+        response = requests.patch(f"{session_url}{session_id}", headers=headers, timeout=5.0)
         if response.status_code == 200:
             print(f"[Main] 세션 종료: ID={session_id}")
         else:
@@ -201,8 +226,8 @@ def main():
     # 세션 시작
     session_id = None
     if not args.no_session:
-        mlops_ver, yolo_ver = get_current_model_version()
-        session_id = start_session(session_url, mlops_version=mlops_ver, yolo_version=yolo_ver)
+        model_info = get_current_model_version()
+        session_id = start_session(session_url, model_info=model_info)
 
     # Queue 생성
     frame_queue = queue.Queue(maxsize=config.FRAME_QUEUE_SIZE * len(input_sources))

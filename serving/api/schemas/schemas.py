@@ -111,8 +111,6 @@ class SessionCreateResponse(BaseModel):
     """
     id: int = Field(..., description="생성된 세션 ID")
     started_at: str = Field(..., description="세션 시작 시간 (ISO 8601)")
-    mlops_version: Optional[str] = Field(None, description="사용된 MLOps 모델 버전")
-    yolo_version: Optional[str] = Field(None, description="사용된 YOLO 베이스 모델 버전")
     model_name: Optional[str] = Field(None, description="결합된 모델 이름 (예: yolov11m_v0)")
 
 
@@ -173,6 +171,7 @@ class SessionInfo(BaseModel):
     ended_at: Optional[str] = Field(None, description="종료 시간")
     duration_seconds: Optional[float] = Field(None, description="진행 시간 (초)")
     is_active: bool = Field(..., description="진행 중 여부")
+    model_name: Optional[str] = Field(None, description="현재 세션의 모델 이름")
 
 
 class HealthResponse(BaseModel):

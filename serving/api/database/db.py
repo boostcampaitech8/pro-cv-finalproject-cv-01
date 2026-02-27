@@ -378,13 +378,10 @@ async def create_session(model_name: Optional[str] = None) -> Dict:
         await db.commit()
         session_id = cursor.lastrowid
 
-    model_name = f"{yolo_version}_{mlops_version}" if yolo_version and mlops_version else (yolo_version or mlops_version)
     return {
         "id": session_id, 
         "started_at": started_at, 
         "ended_at": None, 
-        "mlops_version": mlops_version, 
-        "yolo_version": yolo_version,
         "model_name": model_name
     }
 
@@ -674,12 +671,20 @@ async def get_session_info(session_id: Optional[int]) -> SessionInfo:
         else:
             duration_seconds = None
 
+        # model_name 추출 (새 컬럼 우선, 없으면 구버전 조합)
+        model_name = row["model_name"]
+        if not model_name:
+            mlops_ver = row["mlops_version"]
+            yolo_ver = row["yolo_version"]
+            model_name = f"{yolo_ver}_{mlops_ver}" if yolo_ver and mlops_ver else (yolo_ver or mlops_ver)
+
         return SessionInfo(
             id=session_id,
             started_at=started_at,
             ended_at=ended_at,
             duration_seconds=round(duration_seconds, 1) if duration_seconds else None,
-            is_active=is_active
+            is_active=is_active,
+            model_name=model_name
         )
 
 
@@ -839,8 +844,8 @@ async def get_health(session_id: Optional[str]) -> HealthResponse:
 
     # 활성 모델 버전 추출 (session_info가 존재할 경우)
     active_model = None
-    if session_info:
-        active_model = session_info.get("model_name")
+    if session_info and session_info.id is not None:
+        active_model = session_info.model_name
 
     return HealthResponse(
         status=status,
