@@ -73,6 +73,23 @@ class InferenceWorker(threading.Thread):
                     return model
         return YOLO(model_path, task='detect')
 
+    def _get_model_name(self) -> str:
+        """현재 활성 모델 버전을 반환합니다.
+
+        머신마다 동일한 로직이 반복되어 있어 메서드로 분리했습니다.
+        """
+        version_file = os.path.join(os.path.dirname(config.MODEL_PATH), "current_version.json")
+        model_name = "yolov11m_v0"
+        if os.path.exists(version_file):
+            try:
+                import json
+                with open(version_file, "r") as f:
+                    v_info = json.load(f)
+                    model_name = v_info.get("model_name", model_name)
+            except Exception:
+                pass
+        return model_name
+
     def reload_model(self):
         """
         런타임 중 새로운 엔진이 준비되었을 때 모델 객체를 안전하게 교체하고 세션을 갱신합니다.
@@ -97,16 +114,7 @@ class InferenceWorker(threading.Thread):
                         print(f"[InferenceWorker] 세션 종료 요청 실패: {e}")
                 
                 # 2. 새 모델 버전 읽어오기
-                version_file = os.path.join(os.path.dirname(config.MODEL_PATH), "current_version.json")
-                model_name = "yolov11m_v0"
-                if os.path.exists(version_file):
-                    try:
-                        import json
-                        with open(version_file, "r") as f:
-                            v_info = json.load(f)
-                            model_name = v_info.get("model_name", "yolov11m_v0")
-                    except Exception as e:
-                        pass
+                model_name = self._get_model_name()
                 
                 # 3. 새 세션 시작
                 try:
@@ -232,7 +240,7 @@ class InferenceWorker(threading.Thread):
         timestamp_now = datetime.now()
         image_id = f"PCB_{camera_id}_{timestamp_now.strftime('%Y%m%d_%H%M%S')}"
  
-        return {
+        payload = {
             "timestamp": timestamp_now.isoformat(),
             "image_id": image_id,
             "camera_id": camera_id,
@@ -240,6 +248,11 @@ class InferenceWorker(threading.Thread):
             "detections": detections,
             "session_id": self.session_id
         }
+        # 모델명이 존재하면 함께 포함
+        model_name = self._get_model_name()
+        if model_name:
+            payload["model_name"] = model_name
+        return payload
 
     def stop(self):
         """워커 종료"""
