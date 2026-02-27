@@ -100,9 +100,7 @@ class SessionResponse(BaseModel):
     id: int = Field(..., description="세션 ID")
     started_at: str = Field(..., description="세션 시작 시간 (ISO 8601)")
     ended_at: Optional[str] = Field(None, description="세션 종료 시간 (ISO 8601)")
-    mlops_version: Optional[str] = Field(None, description="사용된 MLOps 모델 버전")
-    yolo_version: Optional[str] = Field(None, description="사용된 YOLO 베이스 모델 버전")
-    model_name: Optional[str] = Field(None, description="결합된 모델 이름 (예: yolov11m_v0)")
+    model_name: Optional[str] = Field(None, description="모델명 (예: yolov11m_v2)")
 
 
 class SessionCreateResponse(BaseModel):
