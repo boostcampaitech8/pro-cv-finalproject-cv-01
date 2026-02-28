@@ -1,6 +1,6 @@
-// Use local backend if running on localhost, otherwise use proxy
+// localhost면 백엔드 직접 연결, 그 외엔 프록시 경로 사용
 const API_BASE_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? "http://localhost:8080"
+    ? "http://localhost:8000"
     : "/api";
 
 const ApiClient = {
@@ -487,7 +487,23 @@ const DashboardUpdater = {
         const timestamp = document.getElementById("health-timestamp");
         if (timestamp) timestamp.innerText = `Last updated: ${new Date(data.timestamp).toLocaleTimeString()}`;
 
-        // 수치 업데이트
+        // Active Model 표시
+        // active_model이 있으면 바로 사용, 없으면(전체 세션 조회 시) sessions API에서 최신 model_name으로 fallback
+        const activeModelEl = document.getElementById("active-model-name");
+        if (activeModelEl) {
+            let modelName = data.active_model || (data.session_info && data.session_info.model_name) || null;
+            if (!modelName) {
+                // sessions 목록에서 model_name이 있는 가장 최신 세션 찾기
+                const sessions = await ApiClient.getSessions();
+                if (sessions && sessions.sessions) {
+                    const latestWithModel = sessions.sessions.find(s => s.model_name);
+                    if (latestWithModel) modelName = latestWithModel.model_name;
+                }
+            }
+            activeModelEl.innerText = modelName || "N/A";
+        }
+
+
         if (document.getElementById("h-defect-rate")) document.getElementById("h-defect-rate").innerText = `${data.defect_rate.toFixed(1)}%`;
         if (document.getElementById("h-avg-confidence")) {
             const conf = data.defect_confidence_stats ? data.defect_confidence_stats.avg_confidence : 0;
