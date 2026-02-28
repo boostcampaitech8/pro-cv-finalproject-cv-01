@@ -69,8 +69,8 @@ python scripts/export_qat.py --weights runs/baseline_v11m_qat/weights/best_ema_r
 
 **3. 지식 증류 (Knowledge Distillation)**
 
-대형 Teacher 모델(v11x)의 성능 상한을 경량 Student 모델(v11n)에 이식시키는 전략입니다.
-- Gradient Bypass(1x1 Conv)를 차단하는 AT(Attention Transfer) 및 커리큘럼 기반 FGFI 기법 지원
+대형 의사결정 모델(Teacher, 예: v11x)이 가진 지식을 경량 추론 모델(Student, 예: v11n)에 이식하여 성능 상한을 실험하는 파이프라인입니다.
+- Logit-based KD, Feature-based KD (AT, CWD, FGFI 등) 다양한 증류 기법을 실험할 수 있도록 설계되어 있습니다.
 ```bash
 # 설정 파일(config_kd.yaml)에서 Teacher/Student 모델 지정 후 실행
 python scripts/train_kd.py --config configs/config_kd.yaml
@@ -122,33 +122,31 @@ mixup: 0.0                    # Mixup Prob
 
 본 Training 코드는 단발성 수동 학습에 그치지 않고, Apache Airflow(`dags/pcb_retrain.py`)에 의해 주기적으로 호출되어 **데이터 동기화부터 모델 변환 및 레지스트리 적재까지 전면 자동화**되어 있습니다. 
 
-### Training 모듈 실행 구조도 (Airflow DAG 기준)
+### MLOps 실행 구조 (Airflow DAG 기준)
 
 ```mermaid
 sequenceDiagram
-    participant DAG as Airflow (MLOps Scheduler)
-    participant Sync as 데이터셋 동기화 (Data Sync)
-    participant Train as 학습 엔진 (run_exp.py)
-    participant QAT as 모델 압축 엔진 (export_qat.py)
-    participant S3 as AWS S3 / MLflow
+    participant DAG as Airflow (Scheduler)
+    participant Sync as S3 Data Sync
+    participant Train as Training Engine
+    participant S3 as MLflow / S3 Registry
 
-    DAG-->>Sync: 1. 재학습 스케줄 트리거
-    Sync->>S3: 최신 라벨링 데이터 PULL (S3 다운로드)
-    Sync-->>DAG: 데이터셋 볼륨 갱신 완료
+    DAG->>Sync: 1. 재학습 스케줄 트리거
+    Sync->>Sync: S3 최신 라벨링 데이터 검증 및 다운로드
     
-    rect rgb(230, 240, 255)
-        Note right of DAG: 2. 자동 성능 파인튜닝
-        DAG->>Train: python scripts/run_exp.py
-        Train->>S3: 최적 파라미터 & 메트릭 기록 (MLflow Registry)
+    rect rgb(235, 245, 255)
+        Note right of DAG: 2. 자동 파인튜닝 (run_exp.py)
+        DAG->>Train: 모델 재학습 시작
+        Train-->>S3: 파라미터 & 메트릭 기록 등록
     end
 
-    rect rgb(255, 240, 230)
-        Note right of DAG: 3. 배포(Edge)용 포맷 최적화 변환
-        DAG->>QAT: python scripts/export_qat.py
-        QAT-->>S3: 최신 ONNX / INT8 Engine 타겟 스토리지 업로드
+    rect rgb(250, 245, 235)
+        Note right of DAG: 3. 배포(Edge)용 포맷 추출 (export_qat.py)
+        DAG->>Train: INT8 Engine 등 엣지 배포용 변환
+        Train-->>S3: 최신 Engine / ONNX 타겟 스토리지 업로드
     end
     
-    DAG->>DAG: 학습 파이프라인 종료 및 메타데이터 버저닝 (vX)
+    DAG->>DAG: 4. 파이프라인 버저닝 (vX) 완료
 ```
 
 ### Training 모듈 관점의 MLOps 이점
