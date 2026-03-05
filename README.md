@@ -80,7 +80,7 @@
 
 <div align="center">
 
-[![데모 영상](https://img.youtube.com/vi/7DkqRYQfxBg/0.jpg)](https://youtu.be/7DkqRYQfxBg?si=3mS4f99RSzwpcFdx)
+[![데모 영상](https://img.youtube.com/vi/tuqKpfCxpP8/0.jpg)](https://youtu.be/tuqKpfCxpP8?si=iPq6MTXHBP6BbomR)
 
 **🌐 라이브 데모**: http://3.35.182.98/
 
@@ -98,8 +98,8 @@
 
 | 문서 | 설명 |
 |:-----|:-----|
-| 📄 [**Wrap-up 리포트**](https://www.notion.so/Wrap-up-REPORT-3043e9d89def8047952bf4abe70fbeee) | 프로젝트 전체 과정 및 결과 정리 (Notion) |
-| 📊 [**발표 자료**](docs/pdf/presentation.pdf) | 최종 프레젠테이션 슬라이드 (PDF) |
+| 📄 [**Wrap-up 리포트**](https://www.notion.so/Report-314e2c74d1c48050938af774141a8d7b?source=copy_link) | 프로젝트 전체 과정 및 결과 정리 (Notion) |
+| 📊 [**발표 자료**](docs/pdf/presentation_e4ds.pdf) | 최종 프레젠테이션 슬라이드 (PDF) |
 
 ---
 
@@ -111,12 +111,16 @@
 ### System Architecture
 ![아키텍처](docs/images/architecture.png)
 
-### 데이터 흐름
-1. **RTSP 서버** (Lightsail) — PCB 영상을 RTSP 프로토콜로 스트리밍
-2. **엣지** (Jetson Orin) — RTSP 수신 → 배경 차분으로 PCB 크롭 → YOLO 추론 → 결과 전송
-3. **백엔드** (EC2 / FastAPI) — 추론 결과 및 이미지를 DB·S3에 저장, 통계 API 제공, Slack 알림
-4. **프론트엔드** (EC2 / nginx) — 실시간 대시보드로 검사 현황 시각화 + 피드백 제출
-5. **피드백 → 재라벨링** — 품질 관리자가 bbox별 피드백(오탐/미탐/클래스 수정)을 제출하면 수정된 YOLO 라벨이 S3 `refined/`에 자동 저장되어 모델 재학습에 활용
+## 데이터 흐름
+
+1. **RTSP 서버 (Lightsail)** — PCB 영상을 RTSP 프로토콜로 스트리밍
+2. **엣지 (Jetson Orin)** — RTSP 수신 → 배경 차분으로 PCB 크롭 → YOLO 추론 → 결과 전송
+3. **백엔드 (EC2 / FastAPI)** — 추론 결과 및 이미지를 DB·S3에 저장, 통계 API 제공, Slack 알림
+4. **프론트엔드 (EC2 / nginx)** — 실시간 대시보드로 검사 현황 시각화 + 피드백 제출
+5. **피드백 → 재라벨링** — 품질 관리자가 bbox별 피드백(오탐/미탐/클래스 수정)을 제출하면 수정된 YOLO 라벨이 S3 `refined/`에 자동 저장
+6. **자동 재학습 (RunPod / Airflow)** — 매주 자동 트리거로 S3 `refined/` 데이터를 가져와 FP32 학습 → QAT 양자화 → ONNX 변환 → MLflow 모델 등록
+7. **자동 배포 (엣지 OTA)** — 엣지에서 S3를 주기적으로 폴링하여 신규 모델 감지 → TRT 엔진 빌드 → Golden Set 성능 검증 → 통과 시 Hot-Swap으로 무중단 모델 교체
+
 
 ---
 
@@ -334,4 +338,4 @@ sudo systemctl start nginx
 
 ## 📄 라이선스
 
-이 프로젝트는 부스트캠프 AI Tech 과정에서 제작되었습니다.
+이 프로젝트는 [MIT License](LICENSE)를 따릅니다.
