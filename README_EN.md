@@ -80,7 +80,7 @@ Inference results are stored in a backend server and AWS Storage, enabling real-
 
 <div align="center">
 
-[![Demo Video](https://img.youtube.com/vi/7DkqRYQfxBg/0.jpg)](https://youtu.be/7DkqRYQfxBg?si=3mS4f99RSzwpcFdx)
+[![Demo Video](https://img.youtube.com/vi/tuqKpfCxpP8/0.jpg)](https://youtu.be/tuqKpfCxpP8?si=HThj3WSvIL54_XSo)
 
 **🌐 Live Demo**: http://3.35.182.98/
 
@@ -98,8 +98,8 @@ Inference results are stored in a backend server and AWS Storage, enabling real-
 
 | Document | Description |
 |:---------|:------------|
-| 📄 [**Wrap-up Report**](https://www.notion.so/Wrap-up-REPORT-3043e9d89def8047952bf4abe70fbeee) | Complete project process and results (Notion) |
-| 📊 [**Presentation**](docs/pdf/presentation.pdf) | Final presentation slides (PDF) |
+| 📄 [**Wrap-up Report**](https://www.notion.so/Report-314e2c74d1c48050938af774141a8d7b?source=copy_link) | Complete project process and results (Notion) |
+| 📊 [**Presentation**](docs/pdf/presentation_e4ds.pdf) | Final presentation slides (PDF) |
 
 ---
 
@@ -111,12 +111,16 @@ Inference results are stored in a backend server and AWS Storage, enabling real-
 ### System Architecture
 ![Architecture](docs/images/architecture.png)
 
-### Data Flow
-1. **RTSP Server** (Lightsail) — Streams PCB video using RTSP protocol
-2. **Edge Device** (Jetson Orin) — Receives RTSP → Crops PCB using background subtraction → YOLO inference → Sends results
-3. **Backend** (EC2 / FastAPI) — Stores results and images in DB and S3, provides statistics API, sends Slack alerts
-4. **Frontend** (EC2 / nginx) — Real-time dashboard + feedback submission UI
-5. **Feedback → Relabeling** — When quality managers submit bbox-level feedback (false positive / false negative / class correction), updated YOLO labels are automatically saved to S3 `refined/` directory for model retraining
+## Data Flow
+
+1. **RTSP Server (Lightsail)** — Streams PCB footage via RTSP protocol
+2. **Edge (Jetson Orin)** — Receives RTSP stream → Background subtraction for PCB cropping → YOLO inference → Sends results to backend
+3. **Backend (EC2 / FastAPI)** — Stores inference results and images in DB/S3, provides statistics API, triggers Slack alerts
+4. **Frontend (EC2 / nginx)** — Real-time dashboard for inspection monitoring + feedback submission
+5. **Feedback → Re-labeling** — Quality inspectors submit per-bbox feedback (false positive / false negative / class correction), which auto-generates corrected YOLO labels saved to S3 `refined/`
+6. **Auto Retraining (RunPod / Airflow)** — Weekly auto-trigger syncs data from S3 `refined/` → FP32 training → QAT quantization → ONNX export → MLflow model registration
+7. **Auto Deployment (Edge OTA)** — Edge device periodically polls S3 for new models → TRT engine build → Golden Set performance validation → Hot-Swap for zero-downtime model replacement on pass
+
 
 ---
 
@@ -331,7 +335,6 @@ sudo systemctl start nginx
 </table>
 
 ---
-
 ## 📄 License
 
-This project was created as part of the Boostcamp AI Tech program by NAVER Connect Foundation.
+This project is licensed under the [MIT License](LICENSE).
