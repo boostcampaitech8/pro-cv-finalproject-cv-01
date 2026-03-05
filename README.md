@@ -23,7 +23,7 @@
 
 [**라이브 데모**](http://3.35.182.98/) · [**API 문서**](http://3.35.182.98:8080/docs) · [**데모 영상**](https://youtu.be/7DkqRYQfxBg?si=3mS4f99RSzwpcFdx)
 
-[**📄 Wrap-up 리포트**](https://www.notion.so/Wrap-up-REPORT-3043e9d89def8047952bf4abe70fbeee) · [**📊 발표 자료**](docs/pdf/presentation.pdf)
+[**📄 Wrap-up 리포트**](https://www.notion.so/Wrap-up-REPORT-3043e9d89def8047952bf4abe70fbeee) · [**📊 발표 자료**](docs/pdf/presentation_e4ds.pdf)
 
 </div>
 
